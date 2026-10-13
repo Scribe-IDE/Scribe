@@ -136,6 +136,7 @@ register(
   { id: "view.sidebar", group: "View", title: "Toggle Sidebar", keys: "Mod-b", enabled: hasProject, checked: () => !sizes.hideSidebar, run: () => togglePane("sidebar") },
   { id: "view.preview", group: "View", title: "Toggle Preview", enabled: hasProject, checked: () => !sizes.hidePreview, run: () => togglePane("preview") },
   { id: "view.log", group: "View", title: "Toggle Log", keys: "Mod-j", enabled: hasProject, checked: () => !logPanel.hidden, run: toggleLog },
+  { id: "view.spell", group: "View", title: "Spell Check", enabled: hasProject, checked: () => settings.spellCheck, run: () => updateSettings({ spellCheck: !settings.spellCheck }) },
   { id: "view.vim", group: "View", title: "Vim Keys", enabled: hasProject, checked: () => settings.vim, run: () => updateSettings({ vim: !settings.vim }) },
   {
     id: "view.relativeNumbers", group: "View", title: "Relative Line Numbers", enabled: hasProject,
@@ -244,7 +245,7 @@ createMenubar($("menubar"), [
       "view.openSide", "view.closeSide", "-",
       "view.sidebar", "view.preview", "view.log", "view.terminal", "-",
       { title: "Theme", icon: ICONS.theme, submenu: () => ["view.themeDark", "view.themeLight"] }, "-",
-      "view.vim", "view.relativeNumbers", "-",
+      "view.vim", "view.relativeNumbers", "view.spell", "-",
       "view.zoomIn", "view.zoomOut", "view.zoomReset", "-",
       "view.pdfZoomIn", "view.pdfZoomOut", "view.pdfFit", "view.pdfFind",
     ],

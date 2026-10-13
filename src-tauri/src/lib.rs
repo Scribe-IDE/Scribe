@@ -1027,6 +1027,78 @@ fn kernel_stop() -> Result<(), String> {
     Ok(())
 }
 
+// ---------- spell check: the operating system's checker ----------
+
+#[cfg(target_os = "macos")]
+mod spell {
+    use objc2::rc::Retained;
+    use objc2::runtime::AnyObject;
+    use objc2::{class, msg_send};
+    use objc2_foundation::{NSArray, NSRange, NSString};
+
+    // AppKit's shared checker. Tauri runs non-async commands on the main thread, which is where
+    // AppKit expects to be called.
+    fn checker() -> *mut AnyObject {
+        unsafe { msg_send![class!(NSSpellChecker), sharedSpellChecker] }
+    }
+
+    pub fn misspelled(word: &str) -> bool {
+        let text = NSString::from_str(word);
+        let range: NSRange = unsafe { msg_send![checker(), checkSpellingOfString: &*text, startingAt: 0isize] };
+        range.length > 0
+    }
+
+    pub fn suggest(word: &str) -> Vec<String> {
+        let text = NSString::from_str(word);
+        let range = NSRange::new(0, text.length());
+        let guesses: Option<Retained<NSArray<NSString>>> = unsafe {
+            msg_send![
+                checker(),
+                guessesForWordRange: range,
+                inString: &*text,
+                language: std::ptr::null::<NSString>(),
+                inSpellDocumentWithTag: 0isize
+            ]
+        };
+        guesses.map(|list| list.iter().map(|g| g.to_string()).collect()).unwrap_or_default()
+    }
+
+    /// Adds the word to the user's dictionary, for every app.
+    pub fn learn(word: &str) {
+        let text = NSString::from_str(word);
+        let _: () = unsafe { msg_send![checker(), learnWord: &*text] };
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+mod spell {
+    pub fn misspelled(_word: &str) -> bool { false }
+    pub fn suggest(_word: &str) -> Vec<String> { Vec::new() }
+    pub fn learn(_word: &str) {}
+}
+
+/// Whether this build has a spell checker to ask.
+#[tauri::command]
+fn spell_available() -> bool {
+    cfg!(target_os = "macos")
+}
+
+/// The subset of `words` the system dictionary doesn't know.
+#[tauri::command]
+fn spell_check(words: Vec<String>) -> Vec<String> {
+    words.into_iter().filter(|w| spell::misspelled(w)).collect()
+}
+
+#[tauri::command]
+fn spell_suggest(word: String) -> Vec<String> {
+    spell::suggest(&word).into_iter().take(6).collect()
+}
+
+#[tauri::command]
+fn spell_learn(word: String) {
+    spell::learn(&word);
+}
+
 // ---------- environment ----------
 
 /// The PATH from the user's login shell. Apps launched from Finder or the Dock inherit only a
@@ -1295,6 +1367,7 @@ pub fn run() {
             parse_notebook, run_notebook, generate_style,
             git_status, git_branch, git_overview, git_diff, git_commit, git_push, git_init, search_project, read_settings, write_settings,
             kernel_start, kernel_run_cell, kernel_stop,
+            spell_available, spell_check, spell_suggest, spell_learn,
             python_bin, check_tools, pty_start, pty_write, pty_resize, pty_kill,
             synctex_edit, synctex_view
         ])
@@ -1442,6 +1515,16 @@ mod tests {
         assert!(git_diff(root.clone(), "../outside".into()).is_err());
 
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn system_spell_checker_answers() {
+        assert!(!spell::misspelled("the"));
+        assert!(!spell::misspelled("training"));
+        assert!(spell::misspelled("acuracy"));
+        assert!(spell::suggest("acuracy").iter().any(|g| g == "accuracy"), "{:?}", spell::suggest("acuracy"));
+        assert_eq!(spell_check(vec!["loss".into(), "validaton".into()]), ["validaton"]);
     }
 
     #[test]

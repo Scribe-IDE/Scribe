@@ -20,6 +20,7 @@ import { tags as t } from "@lezer/highlight";
 import { compile, saveFile } from "./build";
 import { $, current, setDirty } from "./core";
 import { outlineChanged } from "./outline";
+import { spellExtension } from "./spell";
 import { reportCursor } from "./statusbar";
 import { closeTab } from "./tabs";
 import { displayValue, index, scanLabels } from "./texindex";
@@ -251,6 +252,11 @@ export function editorTheme(dark: boolean): Extension {
     "&:not(.cm-focused) .cm-fat-cursor": { background: "none !important", outline: "1px solid var(--accent)", color: "inherit !important" },
     ".cm-vim-panel": { padding: "2px 12px", fontFamily: "var(--font-mono)", fontSize: "12px", minHeight: "1.6em" },
     ".cm-vim-panel input": { fontFamily: "var(--font-mono)", fontSize: "12px", color: "var(--fg)" },
+    ".cm-misspelled": {
+      textDecoration: "underline wavy var(--err)",
+      textDecorationSkipInk: "none",
+      textUnderlineOffset: "3px",
+    },
     ".cm-tooltip-autocomplete > ul": { fontFamily: "var(--font-mono)" },
     ".cm-tooltip-autocomplete > ul > li": { padding: "2px 8px" },
     ".cm-tooltip-autocomplete > ul > li[aria-selected]": { backgroundColor: "var(--accent-dim)", color: "var(--fg)" },
@@ -311,6 +317,8 @@ export function createEditorState(doc: string, path: string, hooks: EditorHooks 
       syntaxHighlighting(gruvbox),
       languageFor(path),
       completionFor(path),
+      spellExtension(path),
+      EditorView.editorAttributes.of({ "data-path": path }), // lets helpers know what kind of file this is
       themeConf.of(editorTheme(editorPrefs.dark)),
       EditorView.lineWrapping,
       keymap.of([

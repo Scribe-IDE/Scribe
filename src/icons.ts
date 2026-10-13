@@ -81,6 +81,7 @@ export const COMMAND_ICONS: Record<string, string> = {
   "view.git": ICONS.branch,
   "view.openSide": ICONS.split,
   "view.closeSide": icon(FRAME + '<path d="M8 2.75v10.5M10 6.75l2.5 2.5M12.5 6.75L10 9.25"/>'),
+  "view.spell": icon('<path d="M2.5 9.5l2.5-6.5 2.5 6.5M3.4 7.25h3.2M9.5 3v6.5M9.5 6a1.75 1.75 0 113.5 0v0a1.75 1.75 0 11-3.5 0"/><path d="M2.5 12.75l1.5-1 1.5 1 1.5-1 1.5 1 1.5-1 1.5 1 1.5-1"/>'),
   "view.zoomReset": icon('<path d="M13 8a5 5 0 01-9.3 2.5M3 8a5 5 0 019.3-2.5"/><path d="M12.5 2.75V5.5H9.75M3.5 13.25V10.5h2.75"/>'),
 
   "build.compile": ICONS.play,

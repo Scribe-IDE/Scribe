@@ -3,7 +3,8 @@ import { invoke } from "@tauri-apps/api/core";
 import { $, root } from "./core";
 import { editorPrefs, LineNumberStyle, prefEffects, view } from "./editor";
 import { cellPrefEffects, cellViews } from "./notebook";
-import { refreshSidePrefs } from "./split";
+import { refreshSpelling, spellPrefs } from "./spell";
+import { refreshSidePrefs, sideView } from "./split";
 import { refreshTerminalTheme } from "./terminal";
 
 // ---------- settings ----------
@@ -19,10 +20,12 @@ export interface Settings {
   lineNumbers: LineNumberStyle;
   /** Notebook cells show line numbers too. */
   cellLineNumbers: boolean;
+  /** Underline misspelled words in .tex, .md and .txt files. */
+  spellCheck: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  theme: "dark", fontSize: 13, order: {}, compileOnSave: false, vim: false, lineNumbers: "absolute", cellLineNumbers: false,
+  theme: "dark", fontSize: 13, order: {}, compileOnSave: false, vim: false, lineNumbers: "absolute", cellLineNumbers: false, spellCheck: true,
 };
 export const FONT_MIN = 10;
 export const FONT_MAX = 24;
@@ -64,6 +67,7 @@ export async function loadSettings() {
     settings.vim = parsed.vim === true;
     if (["absolute", "relative", "off"].includes(parsed.lineNumbers)) settings.lineNumbers = parsed.lineNumbers;
     settings.cellLineNumbers = parsed.cellLineNumbers === true;
+    settings.spellCheck = parsed.spellCheck !== false;
   } catch {}
   applySettings();
 }
@@ -83,6 +87,8 @@ export function applySettings() {
   $<HTMLInputElement>("setting-vim").checked = settings.vim;
   $<HTMLSelectElement>("setting-line-numbers").value = settings.lineNumbers;
   $<HTMLInputElement>("setting-cell-numbers").checked = settings.cellLineNumbers;
+  $<HTMLInputElement>("setting-spell").checked = settings.spellCheck;
+  spellPrefs.on = settings.spellCheck;
 
   Object.assign(editorPrefs, {
     dark: settings.theme === "dark",
@@ -94,6 +100,8 @@ export function applySettings() {
   refreshSidePrefs();
   view.dispatch({ effects: prefEffects() });
   view.requestMeasure();
+  refreshSpelling(view);
+  if (sideView) refreshSpelling(sideView);
   for (const cellView of cellViews) {
     cellView?.dispatch({ effects: cellPrefEffects() });
     cellView?.requestMeasure();
@@ -112,6 +120,9 @@ $("setting-vim").addEventListener("change", (e) => {
 });
 $("setting-line-numbers").addEventListener("change", (e) => {
   updateSettings({ lineNumbers: (e.target as HTMLSelectElement).value as LineNumberStyle });
+});
+$("setting-spell").addEventListener("change", (e) => {
+  updateSettings({ spellCheck: (e.target as HTMLInputElement).checked });
 });
 $("setting-cell-numbers").addEventListener("change", (e) => {
   updateSettings({ cellLineNumbers: (e.target as HTMLInputElement).checked });

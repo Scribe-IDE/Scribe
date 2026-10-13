@@ -7,6 +7,7 @@ import { $, changeListeners, current, logPanel, mainFile, root, setLogView, VIEW
 import { ICONS } from "./icons";
 import { notebookMode } from "./notebook";
 import { problemCount } from "./problems";
+import { countWords, proseKind } from "./prose";
 
 const KIND: Record<string, string> = {
   tex: "LaTeX", bib: "BibTeX", sty: "LaTeX package", cls: "LaTeX class", md: "Markdown", txt: "Plain text",
@@ -29,12 +30,35 @@ export function renderFileInfo() {
   if (!editing) {
     $("sb-cursor").textContent = "";
     $("sb-vim").textContent = "";
+    $("sb-words").textContent = "";
   }
+}
+
+const number = new Intl.NumberFormat();
+let wordTimer: number | null = null;
+
+// Counting reads the whole document, so it waits for a pause in typing.
+function reportWords(editor: EditorView) {
+  const kind = proseKind(editor.dom.dataset.path ?? null);
+  const el = $("sb-words");
+  if (!kind) {
+    el.textContent = "";
+    return;
+  }
+  if (wordTimer) clearTimeout(wordTimer);
+  wordTimer = window.setTimeout(() => {
+    const { from, to } = editor.state.selection.main;
+    const total = countWords(editor.state.doc.toString(), kind);
+    const picked = from === to ? 0 : countWords(editor.state.sliceDoc(from, to), kind);
+    el.textContent = picked ? `${number.format(picked)} of ${number.format(total)} words` : `${number.format(total)} word${total === 1 ? "" : "s"}`;
+    el.title = "Words in this file, not counting commands, maths or comments";
+  }, 300);
 }
 
 /** Called by whichever editor (main or a notebook cell) just changed or took focus. */
 export function reportCursor(editor: EditorView) {
   if (!editor.hasFocus && document.activeElement !== document.body) return; // a background editor
+  reportWords(editor);
   const { head, from, to } = editor.state.selection.main;
   const line = editor.state.doc.lineAt(head);
   const selected = to - from;
