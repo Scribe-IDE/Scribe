@@ -1,4 +1,4 @@
-# Papyrus
+# Scribe
 
 Desktop LaTeX + Python editor where notebook figures flow straight into the paper.
 

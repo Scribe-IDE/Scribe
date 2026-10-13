@@ -1,19 +1,29 @@
 \documentclass[11pt]{article}
 \usepackage{graphicx}
 \usepackage{amsmath}
-\title{Papyrus Example}
+\usepackage{scribe-figures}
+\title{Scribe Example}
 \author{Giorgos Kiritsis}
 \begin{document}
 \maketitle
 
 \section{Introduction}
 Edit this file and press \texttt{Ctrl+Enter} to recompile.
+Scribe will automatically run stale notebooks before compiling.
 
 \begin{equation}
   \mathcal{L}(\theta) = \frac{1}{N}\sum_{i=1}^{N} \ell\big(f_\theta(x_i), y_i\big)
 \end{equation}
 
-% Step 2 will generate figures/fig-loss.pdf from notebooks/analysis.py
-% and resolve \nbfig{fig-loss} automatically.
+\section{Results}
+Figure~\ref{fig:loss} shows the training and validation loss over \nbval{epochs} epochs.
+The final training loss is \nbval{final-loss}; both numbers come straight from the notebook.
+
+\begin{figure}[ht]
+  \centering
+  \nbfig{fig-loss}
+  \caption{Training and validation loss.}
+  \label{fig:loss}
+\end{figure}
 
 \end{document}

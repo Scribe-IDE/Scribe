@@ -3,26 +3,186 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Papyrus</title>
+  <title>Scribe</title>
   <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
-  <header id="toolbar">
-    <span class="brand">Papyrus</span>
-    <button id="btn-open" title="Open project folder">Open folder</button>
-    <button id="btn-save" title="Save (Ctrl+S)">Save</button>
-    <button id="btn-compile" class="primary" title="Compile (Ctrl+Enter)">Compile</button>
-    <span id="status"></span>
-  </header>
-  <main id="layout">
-    <aside id="files"><div class="empty">Open a project folder</div></aside>
-    <section id="editor-pane">
-      <div id="tab"></div>
-      <div id="editor"></div>
-      <pre id="log" hidden></pre>
-    </section>
-    <section id="pdf-pane"><div id="pdf"></div></section>
-  </main>
+  <section id="welcome">
+    <div class="welcome-drag" data-tauri-drag-region></div>
+    <div class="welcome-panel">
+      <h1 class="welcome-title">Scribe</h1>
+      <p class="welcome-tagline">Write LaTeX, run Python, and let the figures land in the paper.</p>
+      <div class="welcome-actions">
+        <button id="welcome-open" class="btn btn-primary btn-lg">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 4.25a1 1 0 011-1h3l1.5 1.5H13a1 1 0 011 1v6.5a1 1 0 01-1 1H3a1 1 0 01-1-1v-8z"/></svg>
+          Open project <kbd>⌘O</kbd>
+        </button>
+        <button id="welcome-new" class="btn btn-outline btn-lg" title="Pick or create a folder and start it with a paper and a notebook">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3.25v9.5M3.25 8h9.5"/></svg>
+          New project
+        </button>
+      </div>
+      <p id="welcome-error" class="welcome-error" role="alert" hidden></p>
+      <section id="recent" class="welcome-section" hidden>
+        <h2>Recent projects</h2>
+        <ul id="recent-list" class="welcome-list"></ul>
+      </section>
+      <section class="welcome-section">
+        <h2>On this Mac</h2>
+        <ul id="setup-list" class="welcome-list setup"></ul>
+      </section>
+      <section class="welcome-section">
+        <h2>Shortcuts</h2>
+        <ul id="shortcut-list" class="welcome-list shortcuts"></ul>
+      </section>
+      <p class="welcome-version">Version 0.1</p>
+    </div>
+    <div class="welcome-stage" aria-hidden="true">
+      <pre id="typewriter" class="typewriter"></pre>
+      <div class="paper"><div id="paper" class="paper-body"></div></div>
+    </div>
+  </section>
+
+  <div id="app" class="hidden">
+    <header id="titlebar" data-tauri-drag-region>
+      <span class="tb-drag" data-tauri-drag-region></span>
+      <button id="btn-open" class="crumb-project" title="Open another project (⌘O)">
+        <span id="project-name"></span>
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.5 6.5L8 10l3.5-3.5"/></svg>
+      </button>
+      <span class="crumb-sep" aria-hidden="true">/</span>
+      <span id="tab" class="crumb-file"></span>
+      <span class="tb-drag" data-tauri-drag-region></span>
+    </header>
+    <header id="toolbar">
+      <nav id="menubar" aria-label="Application menu"></nav>
+      <button id="status" class="status" title="Show or hide the log" hidden>
+        <span class="status-mark" aria-hidden="true"></span>
+        <span id="status-text"></span>
+      </button>
+      <span class="tb-spacer"></span>
+      <button id="btn-run-file" class="btn" title="Run this Python file in the terminal (⌘R)" hidden>
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4.5 2.8v10.4a.6.6 0 00.9.5l8.4-5.2a.6.6 0 000-1L5.4 2.3a.6.6 0 00-.9.5z"/></svg>
+        Run file
+      </button>
+      <button id="btn-run" class="btn" title="Run every notebook that produces figures (⇧⌘↵)">Run notebooks</button>
+      <button id="btn-compile" class="btn btn-primary" title="Save and compile (⌘↵)">Compile <kbd>⌘↵</kbd></button>
+      <button id="btn-settings" class="icon-btn" title="Settings" aria-label="Settings" aria-haspopup="true">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M2.5 5h5.5M12 5h1.5M2.5 11h1.5M8 11h5.5"/><circle cx="10" cy="5" r="1.75"/><circle cx="6" cy="11" r="1.75"/></svg>
+      </button>
+    </header>
+
+    <main id="layout">
+      <aside id="sidebar">
+        <div class="side-tabs" role="tablist">
+          <button id="tab-files" role="tab" aria-selected="true" aria-controls="files">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 4.5V2.75a.5.5 0 01.5-.5h4.25L13 5v6.75a.5.5 0 01-.5.5h-2"/><path d="M3 5a.5.5 0 01.5-.5h4.25L10.5 7.25v6a.5.5 0 01-.5.5H3.5a.5.5 0 01-.5-.5V5z"/></svg>
+            Files
+          </button>
+          <button id="tab-search" role="tab" aria-selected="false" aria-controls="search-panel" title="Search project (⇧⌘F)">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="7" r="4.25"/><path d="M10.25 10.25L13.5 13.5"/></svg>
+            Search
+          </button>
+          <button id="tab-figures" role="tab" aria-selected="false" aria-controls="figures-panel" title="Figures and values from the notebooks">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2.75" width="12" height="10.5" rx="1.5"/><path d="M4.5 10.5l2.25-2.5 1.75 1.75 1.5-1.5 1.5 2.25"/></svg>
+            Figures
+          </button>
+          <button id="side-new" class="icon-btn" title="New file" aria-label="New file">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2.25H4.5a.5.5 0 00-.5.5v10.5a.5.5 0 00.5.5h7a.5.5 0 00.5-.5V8.5"/><path d="M12 2v4M10 4h4"/></svg>
+          </button>
+          <button id="side-new-folder" class="icon-btn" title="New folder" aria-label="New folder">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 8.5V5.75a1 1 0 00-1-1H7.5L6 3.25H3a1 1 0 00-1 1v7.5a1 1 0 001 1h5"/><path d="M12 10v4M10 12h4"/></svg>
+          </button>
+        </div>
+        <div id="files" role="tabpanel"></div>
+        <div id="figures-panel" role="tabpanel" hidden></div>
+        <div id="search-panel" role="tabpanel" hidden>
+          <input id="search-input" type="text" placeholder="Search in project" aria-label="Search in project" spellcheck="false" autocomplete="off" />
+          <div id="search-results" class="search-results"></div>
+        </div>
+      </aside>
+      <div class="splitter" data-split="sidebar" role="separator" aria-orientation="vertical" aria-label="Resize sidebar" tabindex="0"></div>
+      <section id="editor-pane">
+        <div id="tabs" role="tablist" aria-label="Open files" hidden></div>
+        <div id="no-file" class="no-file" hidden>
+          <p>No file open.</p>
+          <p>Pick one from the list, or press <kbd>⌘</kbd><kbd>P</kbd> to go to a file.</p>
+        </div>
+        <div id="editor"></div>
+        <div id="notebook-view" class="notebook-view" hidden></div>
+        <div id="file-preview" hidden></div>
+        <section id="log-panel" hidden>
+          <header>
+            <span id="log-title">Log</span>
+            <span class="log-tabs" role="tablist">
+              <button id="log-tab-problems" role="tab" aria-selected="false" aria-controls="problems">Problems</button>
+              <button id="log-tab-output" role="tab" aria-selected="true" aria-controls="log">Output</button>
+            </span>
+            <button id="log-close" class="icon-btn" title="Hide log" aria-label="Hide log">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+            </button>
+          </header>
+          <div id="problems" role="tabpanel" hidden></div>
+          <pre id="log" role="tabpanel"></pre>
+        </section>
+        <section id="term-panel" hidden>
+          <header>
+            <span>Terminal</span>
+            <span class="term-actions">
+              <button id="term-stop" class="btn" disabled>Stop</button>
+              <button id="term-clear" class="btn">Clear</button>
+              <button id="term-close" class="icon-btn" title="Hide terminal" aria-label="Hide terminal">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+              </button>
+            </span>
+          </header>
+          <pre id="term-output" aria-live="polite"></pre>
+          <label class="term-line">
+            <span class="term-prompt" aria-hidden="true">$</span>
+            <input id="term-input" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="Terminal input" />
+          </label>
+        </section>
+      </section>
+      <div class="splitter" data-split="pdf" role="separator" aria-orientation="vertical" aria-label="Resize preview" tabindex="0"></div>
+      <section id="pdf-pane">
+        <div id="pdf-bar" hidden>
+          <span id="pdf-page-label"></span>
+          <input id="pdf-find" type="text" placeholder="Find in PDF" aria-label="Find in PDF" spellcheck="false" autocomplete="off" />
+          <span id="pdf-find-count" aria-live="polite"></span>
+          <span class="pdf-zoom">
+            <button id="pdf-zoom-out" class="icon-btn" title="Zoom out" aria-label="Zoom out"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8h9"/></svg></button>
+            <button id="pdf-zoom-label" class="btn" title="Fit to width">100%</button>
+            <button id="pdf-zoom-in" class="icon-btn" title="Zoom in" aria-label="Zoom in"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8h9M8 3.5v9"/></svg></button>
+          </span>
+        </div>
+        <div id="pdf-scroll">
+        <div id="pdf">
+          <div class="pdf-empty">
+            <p>No preview yet.</p>
+            <p>Press <kbd>⌘</kbd><kbd>↵</kbd> to compile the paper.</p>
+            <p>Double-click the PDF to jump to its source.</p>
+          </div>
+        </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="settings-popover" role="dialog" aria-label="Settings" hidden>
+    <label class="settings-row">
+      <span>Theme</span>
+      <select id="setting-theme"><option value="dark">Dark</option><option value="light">Light</option></select>
+    </label>
+    <label class="settings-row">
+      <span>Editor font size</span>
+      <select id="setting-fontsize"></select>
+    </label>
+    <label class="settings-row">
+      <span>Compile on save</span>
+      <input id="setting-compile-on-save" type="checkbox" />
+    </label>
+  </div>
+
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

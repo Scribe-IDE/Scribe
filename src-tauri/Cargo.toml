@@ -1,10 +1,10 @@
 [package]
-name = "papyrus"
+name = "scribe"
 version = "0.1.0"
 edition = "2021"
 
 [lib]
-name = "papyrus_lib"
+name = "scribe_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
@@ -14,4 +14,8 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 walkdir = "2"
+tauri-plugin-opener = "2"
+tauri-plugin-clipboard-manager = "2"
+trash = "5.2.9"

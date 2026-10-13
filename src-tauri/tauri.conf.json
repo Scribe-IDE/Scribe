@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Papyrus",
+  "productName": "Scribe",
   "version": "0.1.0",
-  "identifier": "com.georgekiritsis.papyrus",
+  "identifier": "com.georgekiritsis.scribe",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -10,8 +10,30 @@
     "frontendDist": "../dist"
   },
   "app": {
-    "windows": [{ "title": "Papyrus", "width": 1400, "height": 860 }],
-    "security": { "csp": null }
+    "windows": [
+      {
+        "title": "Scribe",
+        "width": 1400,
+        "height": 860,
+        "minWidth": 820,
+        "minHeight": 520,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "trafficLightPosition": {
+          "x": 14,
+          "y": 20
+        }
+      }
+    ],
+    "security": {
+      "csp": null
+    }
   },
-  "bundle": { "active": true, "targets": "all", "icon": ["icons/icon.png"] }
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/icon.png"
+    ]
+  }
 }
