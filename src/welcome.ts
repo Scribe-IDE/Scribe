@@ -4,7 +4,9 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { formatKeys, getCommand } from "./commands";
 import { ICONS } from "./icons";
 import { $, appEl, baseName, welcomeEl } from "./core";
+import { openPalette } from "./palette";
 import { openProject } from "./project";
+import { TEMPLATES } from "./templates";
 
 export function showWelcome(show: boolean) {
   welcomeEl.classList.toggle("hidden", !show);
@@ -288,64 +290,46 @@ export function renderShortcuts() {
   }
 }
 
-export const STARTER_TEX = `\\documentclass[11pt]{article}
-\\usepackage{graphicx}
-\\usepackage{amsmath}
-\\usepackage{scribe-figures}
-
-\\title{Untitled Paper}
-\\author{}
-
-\\begin{document}
-\\maketitle
-
-\\section{Introduction}
-Write here, then press Cmd+Enter to compile.
-
-\\begin{figure}[ht]
-  \\centering
-  \\nbfig{fig-example}
-  \\caption{Produced by notebooks/analysis.py.}
-  \\label{fig:example}
-\\end{figure}
-
-\\end{document}
-`;
-
-export const STARTER_NOTEBOOK = `# %% [markdown]
-# Figure cells export to figures/<id>.pdf and are included with \\nbfig{<id>}.
-
-# %%
-import numpy as np
-import matplotlib.pyplot as plt
-
-x = np.linspace(0, 10, 200)
-
-# %% [figure: fig-example]
-fig, ax = plt.subplots(figsize=(5, 3))
-ax.plot(x, np.exp(-x / 5) * np.sin(x), color="#d4a556", linewidth=1.5)
-ax.set_xlabel("t")
-ax.set_ylabel("y")
-fig.tight_layout()
-`;
-
-// Pick (or create) a folder; if it has no paper yet, start it with one and a notebook.
+// Pick (or create) a folder. A folder that already has a paper just opens; an empty one is
+// started from a template.
 export async function newProject() {
   const picked = await open({ directory: true, multiple: false, title: "Choose or create a folder for the project" });
   if (typeof picked !== "string") return;
-  try {
-    const files = await invoke<string[]>("list_files", { root: picked });
-    if (!files.some((f) => f.endsWith(".tex"))) {
-      await invoke("write_file", { root: picked, rel: "main.tex", content: STARTER_TEX });
-      if (!files.includes("notebooks/analysis.py")) {
-        await invoke("write_file", { root: picked, rel: "notebooks/analysis.py", content: STARTER_NOTEBOOK });
-      }
-    }
-  } catch (e) {
+  const fail = (e: unknown) => {
     const errEl = $("welcome-error");
     errEl.textContent = `Couldn't set up the project: ${e}`;
     errEl.hidden = false;
+  };
+
+  let files: string[];
+  try {
+    files = await invoke<string[]>("list_files", { root: picked });
+  } catch (e) {
+    fail(e);
     return;
   }
-  await openProject(picked);
+  if (files.some((f) => f.endsWith(".tex"))) {
+    await openProject(picked);
+    return;
+  }
+
+  openPalette({
+    placeholder: `Start ${baseName(picked)} from…`,
+    empty: "No templates.",
+    items: TEMPLATES.map((template) => ({
+      label: template.name,
+      detail: template.detail,
+      run: async () => {
+        try {
+          for (const [rel, content] of Object.entries(template.files)) {
+            if (!files.includes(rel)) await invoke("write_file", { root: picked, rel, content }); // never overwrite
+          }
+        } catch (e) {
+          fail(e);
+          return;
+        }
+        await openProject(picked);
+      },
+    })),
+  });
 }
