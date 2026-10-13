@@ -19,8 +19,9 @@ import { sizes, togglePane } from "./layout";
 import { activeCell, cellRunners, cellViews, isNotebook, restartKernel } from "./notebook";
 import { closeProject, openFolder, openProject } from "./project";
 import { canShowInPdf, focusPdfFind, hasPdf, lastPdf, showInPdf, zoomPdf } from "./preview";
-import { setCompileOnSave, setTheme, settings, toggleSettings, zoom } from "./settings";
+import { setCompileOnSave, setTheme, settings, toggleSettings, updateSettings, zoom } from "./settings";
 import { deleteEntry, newFile, newFolder, quickOpen, renameEntry, showSidebar } from "./sidebar";
+import { renderProblemCount } from "./statusbar";
 import { closeTab, openTabs } from "./tabs";
 import { canRunFile, runFile, showTerminal, stopTerminal, termInput, termPanel, termRunning } from "./terminal";
 import { getRecent, newProject, renderRecent, renderSetup, renderShortcuts, setRecent, startTypewriter } from "./welcome";
@@ -129,6 +130,12 @@ register(
   { id: "view.sidebar", group: "View", title: "Toggle Sidebar", keys: "Mod-b", enabled: hasProject, checked: () => !sizes.hideSidebar, run: () => togglePane("sidebar") },
   { id: "view.preview", group: "View", title: "Toggle Preview", enabled: hasProject, checked: () => !sizes.hidePreview, run: () => togglePane("preview") },
   { id: "view.log", group: "View", title: "Toggle Log", keys: "Mod-j", enabled: hasProject, checked: () => !logPanel.hidden, run: toggleLog },
+  { id: "view.vim", group: "View", title: "Vim Keys", enabled: hasProject, checked: () => settings.vim, run: () => updateSettings({ vim: !settings.vim }) },
+  {
+    id: "view.relativeNumbers", group: "View", title: "Relative Line Numbers", enabled: hasProject,
+    checked: () => settings.lineNumbers === "relative",
+    run: () => updateSettings({ lineNumbers: settings.lineNumbers === "relative" ? "absolute" : "relative" }),
+  },
   { id: "view.zoomIn", group: "View", title: "Zoom In", keys: "Mod-=", enabled: hasProject, run: () => zoom(1) },
   { id: "view.zoomOut", group: "View", title: "Zoom Out", keys: "Mod-Minus", enabled: hasProject, run: () => zoom(-1) },
   { id: "view.zoomReset", group: "View", title: "Reset Zoom", keys: "Mod-0", enabled: hasProject, run: () => zoom("reset") },
@@ -217,6 +224,7 @@ createMenubar($("menubar"), [
       "view.files", "edit.findInProject", "view.figures", "-",
       "view.sidebar", "view.preview", "view.log", "view.terminal", "-",
       { title: "Theme", icon: ICONS.theme, submenu: () => ["view.themeDark", "view.themeLight"] }, "-",
+      "view.vim", "view.relativeNumbers", "-",
       "view.zoomIn", "view.zoomOut", "view.zoomReset", "-",
       "view.pdfZoomIn", "view.pdfZoomOut", "view.pdfFit", "view.pdfFind",
     ],
@@ -278,6 +286,7 @@ try {
   syncFullscreen().catch(() => {});
 } catch { /* not running inside Tauri */ }
 
+renderProblemCount();
 renderRecent();
 renderShortcuts();
 renderSetup();

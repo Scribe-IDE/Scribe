@@ -21,6 +21,7 @@ export const ICONS = {
   out: icon(OUT),
   play: icon(PLAY),
   close: icon(CLOSE),
+  branch: icon('<circle cx="4.5" cy="3.75" r="1.5"/><circle cx="4.5" cy="12.25" r="1.5"/><circle cx="11.5" cy="5.75" r="1.5"/><path d="M4.5 5.25v5.5M11.5 7.25c0 2.25-2.25 2.5-4 2.75-1.5.2-3 .5-3 1"/>'),
   rerun: icon('<path d="M13 8a5 5 0 11-1.75-3.8"/><path d="M13 2.5v3h-3"/>'),
   error: icon('<circle cx="8" cy="8" r="6"/><path d="M5.9 5.9l4.2 4.2M10.1 5.9l-4.2 4.2"/>'),
   check: icon('<circle cx="8" cy="8" r="6"/><path d="M5.5 8.25l1.75 1.75 3.25-3.75"/>'),
@@ -71,6 +72,8 @@ export const COMMAND_ICONS: Record<string, string> = {
   "view.pdfZoomOut": icon(PAGE + '<path d="M6 9.5h4"/>'),
   "view.pdfFit": icon(PAGE + '<path d="M5.5 9.5h5M6.75 8.25L5.5 9.5l1.25 1.25M9.25 8.25l1.25 1.25-1.25 1.25"/>'),
   "view.pdfFind": icon(PAGE + '<circle cx="7.5" cy="9" r="1.75"/><path d="M8.75 10.25l1.5 1.5"/>'),
+  "view.vim": icon('<path d="M2.5 3.5h3l2.5 6.5 2.5-6.5h3M4 3.5l4 9 4-9"/>'),
+  "view.relativeNumbers": icon('<path d="M3 4.5h1.25v3.25M3 12.25h2.25c0-1.5-2.25-1.25-2.25-2.75 0-.6.5-1 1.1-1s1.1.4 1.15.9M8 5.25h5.5M8 8h5.5M8 10.75h5.5"/>'),
   "view.zoomReset": icon('<path d="M13 8a5 5 0 01-9.3 2.5M3 8a5 5 0 019.3-2.5"/><path d="M12.5 2.75V5.5H9.75M3.5 13.25V10.5h2.75"/>'),
 
   "build.compile": ICONS.play,

@@ -5,6 +5,7 @@ import { Problem } from "./diagnostics";
 import { view } from "./editor";
 import { ICONS } from "./icons";
 import { revealLine } from "./project";
+import { renderProblemCount } from "./statusbar";
 
 let problems: Problem[] = [];
 
@@ -56,6 +57,7 @@ export function setProblems(next: Problem[], log: string, visible: boolean) {
   // With nothing parsed out of a failed compile, the raw output is the only useful thing to show.
   setLogView(problems.length || !log ? "problems" : "output");
   logPanel.hidden = !visible;
+  renderProblemCount();
   markProblemsInEditor();
 }
 
@@ -63,6 +65,7 @@ export function clearProblems() {
   problems = [];
   $("problems").replaceChildren();
   $("log-tab-problems").textContent = "Problems";
+  renderProblemCount();
   markProblemsInEditor();
 }
 

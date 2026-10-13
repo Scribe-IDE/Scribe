@@ -51,14 +51,12 @@ export function showLog(title: string, text: string, visible = true) {
   if (!logPanel.hidden) logEl.scrollTop = logEl.scrollHeight;
 }
 
-/** Lets modules above this one react to state changes without core importing them. */
-export const hooks = {
-  /** Called whenever the open file or its unsaved state is redrawn. */
-  changed: () => {},
-};
+/** Lets modules above this one react to state changes without core importing them: each
+ *  function here runs whenever the open file or its unsaved state is redrawn. */
+export const changeListeners: (() => void)[] = [];
 
 export function renderCrumb() {
-  hooks.changed();
+  for (const listener of changeListeners) listener();
   tabEl.replaceChildren();
   tabEl.classList.toggle("dirty", dirty);
   tabEl.title = dirty ? "Unsaved changes" : "";

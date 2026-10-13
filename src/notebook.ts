@@ -9,9 +9,9 @@ import { indentWithTab } from "@codemirror/commands";
 import { invoke } from "@tauri-apps/api/core";
 import { compile, saveFile } from "./build";
 import { $, current, dirty, ICON_CLOSE, ICON_PLAY, mainFile, root, setDirty, setStatus } from "./core";
-import { editorTheme, floatingTooltips, gruvbox, view } from "./editor";
+import { editorPrefs, editorTheme, floatingTooltips, gruvbox, numberGutter, view, vimKeys } from "./editor";
 import { openFile, save, setMainView } from "./project";
-import { settings } from "./settings";
+import { reportCursor } from "./statusbar";
 import { CellResult, IpynbCell, IpynbDoc, NotebookCell, NotebookInfo } from "./types";
 
 // ---------- notebook cell view ----------
@@ -208,12 +208,25 @@ export function notebookCompletion(context: CompletionContext) {
 
 // Code cells are small CodeMirror editors: same highlighting and theme as the main editor.
 export const cellThemeConf = new Compartment();
+const cellKeysConf = new Compartment();
+const cellNumbersConf = new Compartment();
+
+const cellNumbers = () => numberGutter(editorPrefs.cellNumbers ? editorPrefs.numbers : "off");
+
+/** Effects that bring a cell editor in line with the current preferences. */
+export const cellPrefEffects = () => [
+  cellThemeConf.reconfigure(editorTheme(editorPrefs.dark)),
+  cellKeysConf.reconfigure(vimKeys(editorPrefs.vim)),
+  cellNumbersConf.reconfigure(cellNumbers()),
+];
 export const cellChrome = Prec.highest(EditorView.theme({
   "&": { backgroundColor: "transparent" },
   ".cm-scroller": { padding: "0 0 12px", lineHeight: "1.6" },
   ".cm-content": { padding: "0" },
   ".cm-line": { padding: "0 14px" },
   ".cm-activeLine": { backgroundColor: "transparent" },
+  ".cm-gutters": { backgroundColor: "transparent", paddingRight: "0" },
+  ".cm-activeLineGutter": { backgroundColor: "transparent" },
 }));
 export let cellViews: (EditorView | undefined)[] = [];
 
@@ -227,6 +240,8 @@ export function makeCellEditor(cell: NotebookCell, index: number, card: HTMLElem
           { key: "Mod-Enter", preventDefault: true, run: () => (compile(), true) },
           { key: "Mod-s", preventDefault: true, run: () => (saveFile(), true) },
         ])),
+        cellKeysConf.of(vimKeys(editorPrefs.vim)), // before the default keymap, so Vim's keys win
+        cellNumbersConf.of(cellNumbers()),
         minimalSetup,
         floatingTooltips,
         python(),
@@ -238,10 +253,11 @@ export function makeCellEditor(cell: NotebookCell, index: number, card: HTMLElem
         indentOnInput(),
         indentUnit.of("    "),
         keymap.of([...closeBracketsKeymap, indentWithTab]),
-        cellThemeConf.of(editorTheme(settings.theme === "dark")),
+        cellThemeConf.of(editorTheme(editorPrefs.dark)),
         cellChrome,
         EditorView.contentAttributes.of({ "aria-label": `${CELL_KIND[cell.cell_type] ?? "Cell"} source` }),
         EditorView.updateListener.of((u) => {
+          reportCursor(u.view);
           if (!u.docChanged) return;
           cell.source = u.state.doc.toString();
           setDirty(true);

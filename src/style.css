@@ -245,7 +245,7 @@ select {
 /* ── app shell ── */
 #app {
   display: grid;
-  grid-template-rows: 36px 40px minmax(0, 1fr);
+  grid-template-rows: 36px 40px minmax(0, 1fr) 24px;
   height: 100%;
 }
 
@@ -485,6 +485,54 @@ body.fullscreen #titlebar { padding-left: 8px; }
 }
 
 #btn-compile { margin: 0 4px; }
+
+/* ── status bar ── */
+#statusbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 0 6px;
+  background: var(--panel);
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.sb-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: var(--r-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.sb-item:empty { display: none; }
+button.sb-item { transition: background 150ms ease, color 150ms ease; }
+button.sb-item:hover { background: var(--hover); color: var(--fg); }
+.sb-item svg { width: 12px; height: 12px; flex-shrink: 0; }
+.sb-gap { flex: 1; min-width: 8px; }
+
+#sb-problems span { margin-right: 4px; }
+#sb-problems.has-errors svg:first-of-type,
+#sb-problems.has-errors span:first-of-type { color: var(--err); }
+#sb-problems.has-warnings svg:last-of-type,
+#sb-problems.has-warnings span:last-of-type { color: var(--accent); }
+
+#statusbar .status { height: 20px; max-width: 48ch; padding: 0 7px; border-radius: var(--r-sm); }
+#statusbar .status.busy .status-mark { width: 10px; height: 10px; }
+
+/* Vim mode: quiet in normal mode, coloured while it changes what keys do */
+#sb-vim { font-weight: 600; letter-spacing: 0.04em; color: var(--fg-dim); }
+#sb-vim[data-mode="insert"] { color: var(--ok); }
+#sb-vim[data-mode^="v"] { color: var(--accent); }
+
+#sb-main { overflow: hidden; text-overflow: ellipsis; }
 
 /* ── layout ── */
 #layout {

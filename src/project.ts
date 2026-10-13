@@ -5,10 +5,11 @@ import { open } from "@tauri-apps/plugin-dialog";
 import * as pdfjs from "pdfjs-dist";
 import { clearProblems, markProblemsInEditor } from "./problems";
 import { $, assignDirty, baseName, current, dirty, mainFile, renderCrumb, root, setCurrent, setDirty, setMainFile, setRoot, setStatus, showLog, VIEWABLE } from "./core";
-import { createEditorState, editorTheme, themeConf, view } from "./editor";
+import { createEditorState, prefEffects, view } from "./editor";
 import { isNotebook, leaveNotebook, saveNotebook, stopKernel, updateNotebookView } from "./notebook";
 import { resetPdf } from "./preview";
-import { loadSettings, resetSettings, settings, toggleSettings } from "./settings";
+import { loadSettings, resetSettings, toggleSettings } from "./settings";
+import { renderFileInfo } from "./statusbar";
 import { refreshFiles } from "./sidebar";
 import { dropTabs, noteOpened, resetTabs, showNoFile, stashEditor, takeStashed } from "./tabs";
 import { canRunFile, resetTerminal } from "./terminal";
@@ -96,6 +97,7 @@ export function setMainView(which: "editor" | "notebook" | "preview" | "none") {
   $("notebook-view").hidden = which !== "notebook";
   $("file-preview").hidden = which !== "preview";
   $("btn-run-file").hidden = !canRunFile();
+  renderFileInfo();
   if (which !== "preview") {
     previewJob++;
     $("file-preview").replaceChildren();
@@ -176,8 +178,8 @@ export async function openFile(rel: string) {
   const back = takeStashed(rel, text);
   if (back) {
     view.setState(back.state);
-    // The theme may have changed while this tab was in the background.
-    view.dispatch({ effects: themeConf.reconfigure(editorTheme(settings.theme === "dark")) });
+    // Theme, Vim keys or line numbers may have changed while this tab was in the background.
+    view.dispatch({ effects: prefEffects() });
     requestAnimationFrame(() => { view.scrollDOM.scrollTop = back.scroll; });
   } else {
     view.setState(createEditorState(text, rel));

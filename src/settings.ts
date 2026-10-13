@@ -1,8 +1,8 @@
 // Per-project settings: theme, editor font size, hand-arranged file order.
 import { invoke } from "@tauri-apps/api/core";
 import { $, root } from "./core";
-import { editorTheme, themeConf, view } from "./editor";
-import { cellThemeConf, cellViews } from "./notebook";
+import { editorPrefs, LineNumberStyle, prefEffects, view } from "./editor";
+import { cellPrefEffects, cellViews } from "./notebook";
 
 // ---------- settings ----------
 export interface Settings {
@@ -12,9 +12,16 @@ export interface Settings {
   order: Record<string, string[]>;
   /** Saving (⌘S) also compiles the paper. */
   compileOnSave: boolean;
+  /** Vim keys in the editor and in notebook cells. */
+  vim: boolean;
+  lineNumbers: LineNumberStyle;
+  /** Notebook cells show line numbers too. */
+  cellLineNumbers: boolean;
 }
 
-export const DEFAULT_SETTINGS: Settings = { theme: "dark", fontSize: 13, order: {}, compileOnSave: false };
+export const DEFAULT_SETTINGS: Settings = {
+  theme: "dark", fontSize: 13, order: {}, compileOnSave: false, vim: false, lineNumbers: "absolute", cellLineNumbers: false,
+};
 export const FONT_MIN = 10;
 export const FONT_MAX = 24;
 
@@ -52,6 +59,9 @@ export async function loadSettings() {
     if (typeof parsed.fontSize === "number") settings.fontSize = Math.min(FONT_MAX, Math.max(FONT_MIN, parsed.fontSize));
     if (parsed.order && typeof parsed.order === "object") settings.order = parsed.order;
     settings.compileOnSave = parsed.compileOnSave === true;
+    settings.vim = parsed.vim === true;
+    if (["absolute", "relative", "off"].includes(parsed.lineNumbers)) settings.lineNumbers = parsed.lineNumbers;
+    settings.cellLineNumbers = parsed.cellLineNumbers === true;
   } catch {}
   applySettings();
 }
@@ -68,14 +78,40 @@ export function applySettings() {
   $<HTMLSelectElement>("setting-theme").value = settings.theme;
   $<HTMLSelectElement>("setting-fontsize").value = String(settings.fontSize);
   $<HTMLInputElement>("setting-compile-on-save").checked = settings.compileOnSave;
-  const theme = editorTheme(settings.theme === "dark");
-  view.dispatch({ effects: themeConf.reconfigure(theme) });
+  $<HTMLInputElement>("setting-vim").checked = settings.vim;
+  $<HTMLSelectElement>("setting-line-numbers").value = settings.lineNumbers;
+  $<HTMLInputElement>("setting-cell-numbers").checked = settings.cellLineNumbers;
+
+  Object.assign(editorPrefs, {
+    dark: settings.theme === "dark",
+    vim: settings.vim,
+    numbers: settings.lineNumbers,
+    cellNumbers: settings.cellLineNumbers,
+  });
+  view.dispatch({ effects: prefEffects() });
   view.requestMeasure();
   for (const cellView of cellViews) {
-    cellView?.dispatch({ effects: cellThemeConf.reconfigure(theme) });
+    cellView?.dispatch({ effects: cellPrefEffects() });
     cellView?.requestMeasure();
   }
 }
+
+/** Change one or more settings, apply them and save them with the project. */
+export function updateSettings(change: Partial<Settings>) {
+  Object.assign(settings, change);
+  applySettings();
+  saveSettings();
+}
+
+$("setting-vim").addEventListener("change", (e) => {
+  updateSettings({ vim: (e.target as HTMLInputElement).checked });
+});
+$("setting-line-numbers").addEventListener("change", (e) => {
+  updateSettings({ lineNumbers: (e.target as HTMLSelectElement).value as LineNumberStyle });
+});
+$("setting-cell-numbers").addEventListener("change", (e) => {
+  updateSettings({ cellLineNumbers: (e.target as HTMLInputElement).checked });
+});
 
 $("setting-theme").addEventListener("change", (e) => {
   setTheme((e.target as HTMLSelectElement).value as Settings["theme"]);

@@ -684,6 +684,14 @@ struct GitFileStatus {
     status: String,
 }
 
+/// The checked-out branch, or None outside a git repository.
+#[tauri::command]
+fn git_branch(root: String) -> Option<String> {
+    let out = Command::new("git").args(["rev-parse", "--abbrev-ref", "HEAD"]).current_dir(&root).output().ok()?;
+    let branch = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    (out.status.success() && !branch.is_empty()).then_some(branch)
+}
+
 #[tauri::command]
 fn git_status(root: String) -> Result<Vec<GitFileStatus>, String> {
     let root_dir = Path::new(&root).canonicalize().map_err(|e| e.to_string())?;
@@ -1064,7 +1072,7 @@ pub fn run() {
             list_files, list_dirs, create_dir, rename_path, delete_path,
             read_file, write_file, read_binary, compile,
             parse_notebook, run_notebook, generate_style,
-            git_status, search_project, read_settings, write_settings,
+            git_status, git_branch, search_project, read_settings, write_settings,
             kernel_start, kernel_run_cell, kernel_stop,
             python_bin, term_run, term_input, term_stop, check_tools,
             synctex_edit, synctex_view

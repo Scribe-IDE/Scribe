@@ -56,10 +56,6 @@
     </header>
     <header id="toolbar">
       <nav id="menubar" aria-label="Application menu"></nav>
-      <button id="status" class="status" title="Show or hide the log" hidden>
-        <span class="status-mark" aria-hidden="true"></span>
-        <span id="status-text"></span>
-      </button>
       <span class="tb-spacer"></span>
       <button id="btn-run-file" class="btn" title="Run this Python file in the terminal (⌘R)" hidden>
         <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M4.5 2.8v10.4a.6.6 0 00.9.5l8.4-5.2a.6.6 0 000-1L5.4 2.3a.6.6 0 00-.9.5z"/></svg>
@@ -166,6 +162,19 @@
         </div>
       </section>
     </main>
+    <footer id="statusbar">
+      <span id="sb-branch" class="sb-item" hidden></span>
+      <button id="sb-problems" class="sb-item"></button>
+      <button id="status" class="status" title="Show or hide the log" hidden>
+        <span class="status-mark" aria-hidden="true"></span>
+        <span id="status-text"></span>
+      </button>
+      <span class="sb-gap"></span>
+      <span id="sb-vim" class="sb-item"></span>
+      <span id="sb-cursor" class="sb-item"></span>
+      <span id="sb-kind" class="sb-item"></span>
+      <span id="sb-main" class="sb-item"></span>
+    </footer>
   </div>
 
   <div id="settings-popover" role="dialog" aria-label="Settings" hidden>
@@ -176,6 +185,20 @@
     <label class="settings-row">
       <span>Editor font size</span>
       <select id="setting-fontsize"></select>
+    </label>
+    <label class="settings-row">
+      <span>Vim keys</span>
+      <input id="setting-vim" type="checkbox" />
+    </label>
+    <label class="settings-row">
+      <span>Line numbers</span>
+      <select id="setting-line-numbers">
+        <option value="absolute">Absolute</option><option value="relative">Relative</option><option value="off">Off</option>
+      </select>
+    </label>
+    <label class="settings-row">
+      <span>Line numbers in cells</span>
+      <input id="setting-cell-numbers" type="checkbox" />
     </label>
     <label class="settings-row">
       <span>Compile on save</span>

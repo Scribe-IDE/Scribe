@@ -1,7 +1,7 @@
 // Open-file tabs. Each text tab keeps its own editor state (undo history, cursor, scroll)
 // while another file is showing.
 import { EditorState } from "@codemirror/state";
-import { $, assignDirty, baseName, current, dirty, hooks, renderCrumb, setCurrent } from "./core";
+import { $, assignDirty, baseName, changeListeners, current, dirty, renderCrumb, setCurrent } from "./core";
 import { view } from "./editor";
 import { ICONS } from "./icons";
 import { leaveNotebook } from "./notebook";
@@ -147,4 +147,4 @@ export function resetTabs() {
 }
 
 // The active tab shows the unsaved dot, so it redraws whenever the title bar does.
-hooks.changed = renderTabs;
+changeListeners.push(renderTabs);

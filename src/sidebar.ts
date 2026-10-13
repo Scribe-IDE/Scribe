@@ -11,6 +11,7 @@ import { sizes, togglePane } from "./layout";
 import { emptyIpynb } from "./notebook";
 import { listDirs, listFiles, openFile, revealLine, save } from "./project";
 import { saveSettings, settings } from "./settings";
+import { refreshBranch } from "./statusbar";
 import { dropTabs, renameTabs } from "./tabs";
 import { NotebookInfo } from "./types";
 
@@ -358,6 +359,7 @@ export function dirRow(dir: string): HTMLElement {
 export async function refreshFiles() {
   const box = $("files");
   const [allFiles, dirList, gitMap] = await Promise.all([listFiles(), listDirs(), getGitStatus()]);
+  refreshBranch(); // whatever changed the files may have been a checkout
   const byDir = new Map<string, string[]>();
   for (const f of allFiles.filter(listed)) {
     const dir = parentOf(f);

@@ -1,14 +1,26 @@
 // The main CodeMirror editor: theme, highlighting and LaTeX completion.
-import { EditorView, basicSetup } from "codemirror";
-import { keymap, tooltips } from "@codemirror/view";
+import { EditorView } from "codemirror";
+import {
+  crosshairCursor, drawSelection, dropCursor, gutter, GutterMarker, highlightActiveLine, highlightActiveLineGutter,
+  highlightSpecialChars, keymap, lineNumbers, rectangularSelection, tooltips,
+} from "@codemirror/view";
 import { Compartment, EditorState, Extension } from "@codemirror/state";
-import { HighlightStyle, StreamLanguage, syntaxHighlighting } from "@codemirror/language";
+import {
+  bracketMatching, defaultHighlightStyle, foldGutter, foldKeymap, HighlightStyle, indentOnInput, StreamLanguage,
+  syntaxHighlighting,
+} from "@codemirror/language";
+import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import { highlightSelectionMatches, searchKeymap } from "@codemirror/search";
+import { lintKeymap } from "@codemirror/lint";
+import { vim, Vim } from "@replit/codemirror-vim";
 import { stex } from "@codemirror/legacy-modes/mode/stex";
 import { python } from "@codemirror/lang-python";
-import { autocompletion, Completion, CompletionContext } from "@codemirror/autocomplete";
+import { autocompletion, closeBrackets, closeBracketsKeymap, Completion, CompletionContext, completionKeymap } from "@codemirror/autocomplete";
 import { tags as t } from "@lezer/highlight";
 import { compile, saveFile } from "./build";
 import { $, current, setDirty } from "./core";
+import { reportCursor } from "./statusbar";
+import { closeTab } from "./tabs";
 import { displayValue, index, scanLabels } from "./texindex";
 
 // ---------- autocompletion ----------
@@ -121,6 +133,86 @@ export function latexCompletion(context: CompletionContext) {
 export const floatingTooltips = tooltips({ parent: document.body, position: "fixed" });
 
 export const themeConf = new Compartment();
+export const vimConf = new Compartment();
+export const numbersConf = new Compartment();
+
+export type LineNumberStyle = "absolute" | "relative" | "off";
+
+/** Editor preferences, set from the project's settings. Kept here so new editor states can
+ *  read them without this module depending on settings.ts at load time. */
+export const editorPrefs = {
+  dark: true,
+  vim: false,
+  numbers: "absolute" as LineNumberStyle,
+  /** Notebook cells show line numbers too, in the same style. */
+  cellNumbers: false,
+};
+
+class NumberMarker extends GutterMarker {
+  constructor(readonly text: string) { super(); }
+  eq(other: NumberMarker) { return this.text === other.text; }
+  toDOM() { return document.createTextNode(this.text); }
+}
+
+// Vim-style relative numbers: the cursor's line shows its real number, every other line its
+// distance from the cursor, so `5j` and `3k` can be read straight off the gutter.
+const relativeNumbers = gutter({
+  class: "cm-lineNumbers",
+  lineMarker(target, line) {
+    const number = target.state.doc.lineAt(line.from).number;
+    const cursor = target.state.doc.lineAt(target.state.selection.main.head).number;
+    return new NumberMarker(String(number === cursor ? number : Math.abs(number - cursor)));
+  },
+  lineMarkerChange: (update) => update.selectionSet || update.docChanged,
+  initialSpacer: (target) => new NumberMarker("0".repeat(String(target.state.doc.lines).length)),
+  updateSpacer: (_spacer, update) => new NumberMarker("0".repeat(String(update.state.doc.lines).length)),
+});
+
+export function numberGutter(style: LineNumberStyle): Extension {
+  return style === "relative" ? relativeNumbers : style === "absolute" ? lineNumbers() : [];
+}
+
+/** Vim keys. The mode is shown in the app's status bar, so Vim's own mode line stays off. */
+export const vimKeys = (on: boolean): Extension => (on ? vim() : []);
+
+// :w, :q and :wq do what a Vim user expects of them here.
+Vim.defineEx("write", "w", () => { saveFile(); });
+Vim.defineEx("quit", "q", () => { if (current) closeTab(current); });
+Vim.defineEx("wq", "wq", async () => {
+  await saveFile();
+  if (current) closeTab(current);
+});
+
+// codemirror's basicSetup without its line-number gutter, which numbersConf supplies instead.
+const baseSetup: Extension = [
+  highlightActiveLineGutter(),
+  highlightSpecialChars(),
+  history(),
+  foldGutter(),
+  drawSelection(),
+  dropCursor(),
+  EditorState.allowMultipleSelections.of(true),
+  indentOnInput(),
+  syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
+  bracketMatching(),
+  closeBrackets(),
+  autocompletion(),
+  rectangularSelection(),
+  crosshairCursor(),
+  highlightActiveLine(),
+  highlightSelectionMatches(),
+  keymap.of([
+    ...closeBracketsKeymap, ...defaultKeymap, ...searchKeymap, ...historyKeymap, ...foldKeymap, ...completionKeymap,
+    ...lintKeymap,
+  ]),
+];
+
+/** Effects that bring an editor state in line with the current preferences. */
+export const prefEffects = () => [
+  themeConf.reconfigure(editorTheme(editorPrefs.dark)),
+  vimConf.reconfigure(vimKeys(editorPrefs.vim)),
+  numbersConf.reconfigure(numberGutter(editorPrefs.numbers)),
+];
 
 // Colours are CSS variables so the editor follows the app theme without a rebuild;
 // the dark flag only switches CodeMirror's own base styles.
@@ -153,6 +245,11 @@ export function editorTheme(dark: boolean): Extension {
       borderRadius: "6px",
       overflow: "hidden",
     },
+    // Vim: block cursor in the accent colour, command line in the editor's own type
+    ".cm-fat-cursor": { background: "var(--accent) !important", color: "var(--on-accent) !important" },
+    "&:not(.cm-focused) .cm-fat-cursor": { background: "none !important", outline: "1px solid var(--accent)", color: "inherit !important" },
+    ".cm-vim-panel": { padding: "2px 12px", fontFamily: "var(--font-mono)", fontSize: "12px", minHeight: "1.6em" },
+    ".cm-vim-panel input": { fontFamily: "var(--font-mono)", fontSize: "12px", color: "var(--fg)" },
     ".cm-tooltip-autocomplete > ul": { fontFamily: "var(--font-mono)" },
     ".cm-tooltip-autocomplete > ul > li": { padding: "2px 8px" },
     ".cm-tooltip-autocomplete > ul > li[aria-selected]": { backgroundColor: "var(--accent-dim)", color: "var(--fg)" },
@@ -197,12 +294,14 @@ export function createEditorState(doc: string, path: string): EditorState {
   return EditorState.create({
     doc,
     extensions: [
-      basicSetup,
+      vimConf.of(vimKeys(editorPrefs.vim)), // first, so its keys win over the default keymap
+      numbersConf.of(numberGutter(editorPrefs.numbers)),
+      baseSetup,
       floatingTooltips,
       syntaxHighlighting(gruvbox),
       languageFor(path),
       completionFor(path),
-      themeConf.of(editorTheme(document.documentElement.getAttribute("data-theme") !== "light")),
+      themeConf.of(editorTheme(editorPrefs.dark)),
       EditorView.lineWrapping,
       keymap.of([
         { key: "Mod-s", preventDefault: true, run: () => (saveFile(), true) },
@@ -210,6 +309,7 @@ export function createEditorState(doc: string, path: string): EditorState {
       ]),
       EditorView.updateListener.of((u) => {
         if (u.docChanged && current) setDirty(true);
+        reportCursor(u.view);
       }),
     ],
   });
