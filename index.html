@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Papyrus</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <header id="toolbar">
+    <span class="brand">Papyrus</span>
+    <button id="btn-open" title="Open project folder">Open folder</button>
+    <button id="btn-save" title="Save (Ctrl+S)">Save</button>
+    <button id="btn-compile" class="primary" title="Compile (Ctrl+Enter)">Compile</button>
+    <span id="status"></span>
+  </header>
+  <main id="layout">
+    <aside id="files"><div class="empty">Open a project folder</div></aside>
+    <section id="editor-pane">
+      <div id="tab"></div>
+      <div id="editor"></div>
+      <pre id="log" hidden></pre>
+    </section>
+    <section id="pdf-pane"><div id="pdf"></div></section>
+  </main>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

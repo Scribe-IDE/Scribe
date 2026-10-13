@@ -1,0 +1,32 @@
+:root {
+  --bg: #1b1d23; --panel: #21242b; --border: #2e323b; --fg: #d7dae0;
+  --muted: #8a909c; --accent: #5aa9e6; --err: #e5707a; --ok: #7cc48a;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
+  font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+#toolbar { height: 40px; display: flex; align-items: center; gap: 8px; padding: 0 10px;
+  border-bottom: 1px solid var(--border); background: var(--panel); }
+.brand { font-weight: 600; margin-right: 12px; }
+button { background: #2b2f38; color: var(--fg); border: 1px solid var(--border);
+  border-radius: 5px; padding: 4px 10px; cursor: pointer; }
+button:hover { border-color: var(--accent); }
+button.primary { background: var(--accent); color: #0d1117; border-color: var(--accent); }
+#status { margin-left: auto; color: var(--muted); }
+#status.err { color: var(--err); } #status.ok { color: var(--ok); }
+#layout { display: grid; grid-template-columns: 220px 1fr 1fr; height: calc(100% - 40px); }
+#files { border-right: 1px solid var(--border); overflow: auto; padding: 6px 0; }
+#files .item { padding: 3px 12px; cursor: pointer; white-space: nowrap; }
+#files .item:hover { background: #2a2e37; }
+#files .item.active { background: #2f3a4a; }
+#files .dir { color: var(--muted); padding: 6px 12px 2px; font-size: 11px; text-transform: uppercase; }
+.empty { color: var(--muted); padding: 12px; }
+#editor-pane { display: flex; flex-direction: column; min-width: 0; border-right: 1px solid var(--border); }
+#tab { padding: 6px 12px; color: var(--muted); border-bottom: 1px solid var(--border); }
+#editor { flex: 1; min-height: 0; }
+#editor .cm-editor { height: 100%; }
+#log { margin: 0; max-height: 35%; overflow: auto; padding: 8px 12px; background: #15171c;
+  border-top: 1px solid var(--border); font: 12px/1.4 ui-monospace, monospace; white-space: pre-wrap; }
+#pdf-pane { overflow: auto; background: #3a3d44; }
+#pdf { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 12px; }
+#pdf canvas { box-shadow: 0 2px 8px rgba(0,0,0,.4); background: white; max-width: 100%; }
