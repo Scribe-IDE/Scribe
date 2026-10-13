@@ -23,7 +23,7 @@ import { setCompileOnSave, setTheme, settings, toggleSettings, updateSettings, z
 import { deleteEntry, newFile, newFolder, quickOpen, renameEntry, showSidebar } from "./sidebar";
 import { renderProblemCount } from "./statusbar";
 import { closeTab, openTabs } from "./tabs";
-import { canRunFile, runFile, showTerminal, stopTerminal, termInput, termPanel, termRunning } from "./terminal";
+import { canRunFile, runFile, shellAlive, showTerminal, stopTerminal, termPanel } from "./terminal";
 import { getRecent, newProject, renderRecent, renderSetup, renderShortcuts, setRecent, startTypewriter } from "./welcome";
 
 // ---------- log ----------
@@ -151,10 +151,10 @@ register(
   },
   { id: "build.restartKernel", group: "Build", title: "Restart Kernel", enabled: hasProject, run: restartKernel },
   { id: "build.runFile", group: "Build", title: "Run Python File", keys: "Mod-r", enabled: canRunFile, run: runFile },
-  { id: "build.stop", group: "Build", title: "Stop Running Command", enabled: () => termRunning, run: stopTerminal },
+  { id: "build.stop", group: "Build", title: "Interrupt Terminal (Ctrl+C)", enabled: () => shellAlive, run: stopTerminal },
   {
     id: "view.terminal", group: "View", title: "Toggle Terminal", enabled: hasProject, checked: () => !termPanel.hidden,
-    run: () => { showTerminal(termPanel.hidden); if (!termPanel.hidden) termInput.focus(); },
+    run: () => showTerminal(termPanel.hidden),
   },
   { id: "build.showInPdf", group: "Build", title: "Show in PDF", keys: "Mod-Shift-j", enabled: canShowInPdf, run: showInPdf },
   {

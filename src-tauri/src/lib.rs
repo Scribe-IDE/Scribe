@@ -896,17 +896,74 @@ fn kernel_stop() -> Result<(), String> {
     Ok(())
 }
 
-// ---------- terminal: run a command in the project folder, streaming its output ----------
-// This is deliberately not sandboxed like the file commands: it is the user's own shell.
+// ---------- environment ----------
 
-use tauri::Emitter;
+/// The PATH from the user's login shell. Apps launched from Finder or the Dock inherit only a
+/// bare system PATH, so without this TeX, Python and git would not be found outside `tauri dev`.
+#[cfg(unix)]
+fn login_shell_path() -> Option<String> {
+    use std::io::Read;
+    use std::time::{Duration, Instant};
 
-struct TermProc {
-    child: std::process::Child,
-    stdin: Option<std::process::ChildStdin>,
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
+    // fish keeps PATH as a list; everything else as a colon-separated string.
+    let print = if shell.ends_with("fish") {
+        "printf '__SCRIBE__%s__SCRIBE__' (string join : $PATH)"
+    } else {
+        "printf '__SCRIBE__%s__SCRIBE__' \"$PATH\""
+    };
+    let mut child = Command::new(&shell)
+        .args(["-ilc", print])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .ok()?;
+
+    // A shell profile that waits for input must not hang the app's launch.
+    let deadline = Instant::now() + Duration::from_secs(4);
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => break,
+            Ok(None) if Instant::now() < deadline => std::thread::sleep(Duration::from_millis(20)),
+            _ => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return None;
+            }
+        }
+    }
+    let mut out = String::new();
+    child.stdout.take()?.read_to_string(&mut out).ok()?;
+    // Profiles may print their own text; take only what sits between the markers.
+    let path = out.split("__SCRIBE__").nth(1)?.trim();
+    (!path.is_empty()).then(|| path.to_string())
 }
 
-static TERM: Mutex<Option<TermProc>> = Mutex::new(None);
+/// Give this process (and so every tool it starts) the PATH the user's terminal would have,
+/// plus the usual install locations in case the shell could not be asked.
+#[cfg(unix)]
+fn adopt_shell_path() {
+    let base = login_shell_path().or_else(|| std::env::var("PATH").ok()).unwrap_or_default();
+    let mut dirs: Vec<String> = base.split(':').filter(|d| !d.is_empty()).map(String::from).collect();
+    let home = std::env::var("HOME").unwrap_or_default();
+    let extras = [
+        "/Library/TeX/texbin".to_string(),
+        "/opt/homebrew/bin".to_string(),
+        "/usr/local/bin".to_string(),
+        format!("{home}/.cargo/bin"),
+        format!("{home}/.local/bin"),
+    ];
+    for extra in extras {
+        if !dirs.contains(&extra) && Path::new(&extra).is_dir() {
+            dirs.push(extra);
+        }
+    }
+    std::env::set_var("PATH", dirs.join(":"));
+}
+
+#[cfg(not(unix))]
+fn adopt_shell_path() {}
 
 #[derive(Serialize)]
 struct Tools {
@@ -915,15 +972,17 @@ struct Tools {
     python: Option<String>,
 }
 
+fn find_tools() -> Tools {
+    Tools {
+        tex: ["tectonic", "latexmk"].into_iter().find(|bin| has(bin)).map(String::from),
+        python: find_python().ok(),
+    }
+}
+
 /// What the welcome screen needs to say whether compiling and notebooks will work here.
 #[tauri::command]
 async fn check_tools() -> Result<Tools, String> {
-    tauri::async_runtime::spawn_blocking(|| Tools {
-        tex: ["tectonic", "latexmk"].into_iter().find(|bin| has(bin)).map(String::from),
-        python: find_python().ok(),
-    })
-    .await
-    .map_err(|e| e.to_string())
+    tauri::async_runtime::spawn_blocking(find_tools).await.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -931,10 +990,53 @@ fn python_bin() -> Result<String, String> {
     find_python()
 }
 
-/// Forwards a pipe to the frontend as it arrives, holding back a trailing partial UTF-8 character.
-fn pump<R: std::io::Read + Send + 'static>(app: tauri::AppHandle, mut reader: R) -> std::thread::JoinHandle<()> {
+// ---------- terminal: the user's shell in a pseudo-terminal ----------
+// Deliberately not sandboxed like the file commands: it is the user's own shell.
+
+use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
+use tauri::Emitter;
+
+struct PtySession {
+    id: u64,
+    master: Box<dyn MasterPty + Send>,
+    writer: Box<dyn Write + Send>,
+    child: Box<dyn portable_pty::Child + Send + Sync>,
+}
+
+static PTY: Mutex<Option<PtySession>> = Mutex::new(None);
+static PTY_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+
+/// Starts a login shell in `root_dir`. `on_output` receives what it prints; `on_exit` runs once
+/// the shell is gone.
+fn spawn_pty(
+    root_dir: &Path,
+    cols: u16,
+    rows: u16,
+    on_output: impl Fn(String) + Send + 'static,
+    on_exit: impl FnOnce(u64) + Send + 'static,
+) -> Result<PtySession, String> {
+    let size = PtySize { rows: rows.max(2), cols: cols.max(10), pixel_width: 0, pixel_height: 0 };
+    let pair = native_pty_system().openpty(size).map_err(|e| e.to_string())?;
+
+    let mut cmd = if cfg!(windows) {
+        CommandBuilder::new_default_prog()
+    } else {
+        let mut c = CommandBuilder::new(std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into()));
+        c.arg("-l");
+        c
+    };
+    cmd.cwd(root_dir);
+    cmd.env("TERM", "xterm-256color");
+    cmd.env("COLORTERM", "truecolor");
+
+    let child = pair.slave.spawn_command(cmd).map_err(|e| format!("couldn't start a shell: {e}"))?;
+    drop(pair.slave); // the shell holds its own end; ours would keep the reader from seeing EOF
+    let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
+    let writer = pair.master.take_writer().map_err(|e| e.to_string())?;
+    let id = PTY_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+
     std::thread::spawn(move || {
-        let mut buf = [0u8; 4096];
+        let mut buf = [0u8; 8192];
         let mut pending: Vec<u8> = Vec::new();
         loop {
             let n = match reader.read(&mut buf) {
@@ -942,6 +1044,7 @@ fn pump<R: std::io::Read + Send + 'static>(app: tauri::AppHandle, mut reader: R)
                 Ok(n) => n,
             };
             pending.extend_from_slice(&buf[..n]);
+            // Hold back a trailing partial UTF-8 character until the rest of it arrives.
             let valid = match std::str::from_utf8(&pending) {
                 Err(e) if e.error_len().is_none() => e.valid_up_to(),
                 _ => pending.len(),
@@ -949,93 +1052,80 @@ fn pump<R: std::io::Read + Send + 'static>(app: tauri::AppHandle, mut reader: R)
             let text = String::from_utf8_lossy(&pending[..valid]).into_owned();
             pending.drain(..valid);
             if !text.is_empty() {
-                let _ = app.emit("term-output", text);
+                on_output(text);
             }
         }
-    })
+        on_exit(id);
+    });
+
+    Ok(PtySession { id, master: pair.master, writer, child })
 }
 
 #[tauri::command]
-fn term_run(app: tauri::AppHandle, root: String, command: String) -> Result<(), String> {
-    let mut slot = TERM.lock().map_err(|e| e.to_string())?;
+fn pty_start(app: tauri::AppHandle, root: String, cols: u16, rows: u16) -> Result<(), String> {
+    let mut slot = PTY.lock().map_err(|e| e.to_string())?;
     if slot.is_some() {
-        return Err("a command is already running".into());
+        return Ok(()); // already running
     }
     let root_dir = Path::new(&root).canonicalize().map_err(|e| e.to_string())?;
-
-    let mut cmd = if cfg!(windows) {
-        let mut c = Command::new("cmd");
-        c.args(["/C", &command]);
-        c
-    } else {
-        // A login shell, so PATH matches the user's terminal even when launched from Finder.
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| "sh".into());
-        let mut c = Command::new(shell);
-        c.args(["-l", "-c", &command]);
-        c
-    };
-    cmd.current_dir(&root_dir)
-        .env("PYTHONUNBUFFERED", "1")
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped());
-    #[cfg(unix)]
-    {
-        // Own process group, so Stop reaches whatever the shell started.
-        use std::os::unix::process::CommandExt;
-        cmd.process_group(0);
-    }
-
-    let mut child = cmd.spawn().map_err(|e| format!("couldn't start: {e}"))?;
-    let out = child.stdout.take().map(|r| pump(app.clone(), r));
-    let err = child.stderr.take().map(|r| pump(app.clone(), r));
-    let stdin = child.stdin.take();
-    *slot = Some(TermProc { child, stdin });
-    drop(slot);
-
-    std::thread::spawn(move || {
-        // Both pipes closing means the command has finished.
-        for handle in [out, err].into_iter().flatten() {
-            let _ = handle.join();
-        }
-        let code = TERM
-            .lock()
-            .ok()
-            .and_then(|mut s| s.take())
-            .and_then(|mut p| p.child.wait().ok())
-            .and_then(|status| status.code());
-        let _ = app.emit("term-exit", code);
-    });
+    let out_app = app.clone();
+    let session = spawn_pty(
+        &root_dir,
+        cols,
+        rows,
+        move |text| {
+            let _ = out_app.emit("pty-output", text);
+        },
+        move |id| {
+            // Only clear the slot if it still holds this shell; a newer one may have replaced it.
+            if let Ok(mut slot) = PTY.lock() {
+                if slot.as_ref().is_some_and(|s| s.id == id) {
+                    *slot = None;
+                }
+            }
+            let _ = app.emit("pty-exit", ());
+        },
+    )?;
+    *slot = Some(session);
     Ok(())
 }
 
 #[tauri::command]
-fn term_input(text: String) -> Result<(), String> {
-    let mut slot = TERM.lock().map_err(|e| e.to_string())?;
-    let stdin = slot.as_mut().and_then(|p| p.stdin.as_mut()).ok_or("nothing is running")?;
-    stdin.write_all(text.as_bytes()).map_err(|e| e.to_string())?;
-    stdin.flush().map_err(|e| e.to_string())
+fn pty_write(data: String) -> Result<(), String> {
+    let mut slot = PTY.lock().map_err(|e| e.to_string())?;
+    let session = slot.as_mut().ok_or("no terminal is running")?;
+    session.writer.write_all(data.as_bytes()).map_err(|e| e.to_string())?;
+    session.writer.flush().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn term_stop() -> Result<(), String> {
-    let mut slot = TERM.lock().map_err(|e| e.to_string())?;
-    if let Some(proc) = slot.as_mut() {
-        #[cfg(unix)]
-        {
-            let group = format!("-{}", proc.child.id());
-            let _ = Command::new("kill").args(["-TERM", "--", &group]).status();
-        }
-        #[cfg(not(unix))]
-        {
-            let _ = proc.child.kill();
-        }
+fn pty_resize(cols: u16, rows: u16) -> Result<(), String> {
+    let slot = PTY.lock().map_err(|e| e.to_string())?;
+    if let Some(session) = slot.as_ref() {
+        let size = PtySize { rows: rows.max(2), cols: cols.max(10), pixel_width: 0, pixel_height: 0 };
+        session.master.resize(size).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn pty_kill() -> Result<(), String> {
+    if let Some(mut session) = PTY.lock().map_err(|e| e.to_string())?.take() {
+        let _ = session.child.kill();
+        let _ = session.child.wait();
     }
     Ok(())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    adopt_shell_path();
+    // `scribe --check-tools` prints what the app can find, without opening a window: the quickest
+    // way to see why compiling or notebooks don't work on a machine.
+    if std::env::args().any(|a| a == "--check-tools") {
+        println!("{}", serde_json::to_string(&find_tools()).unwrap_or_default());
+        return;
+    }
     let builder = tauri::Builder::default();
     // The default menu binds Cmd+W to Close Window, which would swallow "close tab".
     #[cfg(target_os = "macos")]
@@ -1074,7 +1164,7 @@ pub fn run() {
             parse_notebook, run_notebook, generate_style,
             git_status, git_branch, search_project, read_settings, write_settings,
             kernel_start, kernel_run_cell, kernel_stop,
-            python_bin, term_run, term_input, term_stop, check_tools,
+            python_bin, check_tools, pty_start, pty_write, pty_resize, pty_kill,
             synctex_edit, synctex_view
         ])
         .run(tauri::generate_context!())
@@ -1159,6 +1249,33 @@ mod tests {
         assert_eq!(back.file, "main.tex");
         assert!((18..=22).contains(&back.line), "landed on line {}", back.line);
         assert!(synctex_edit(example(), "../outside.pdf".into(), 1, 0.0, 0.0).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn terminal_runs_a_shell() {
+        let (tx, rx) = std::sync::mpsc::channel::<String>();
+        let dir = std::env::temp_dir();
+        let mut session = spawn_pty(&dir, 80, 24, move |text| { let _ = tx.send(text); }, |_| {}).unwrap();
+        session.writer.write_all(b"echo scribe-$((40+2))\n").unwrap();
+        session.writer.flush().unwrap();
+
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        let mut seen = String::new();
+        while !seen.contains("scribe-42") && std::time::Instant::now() < deadline {
+            if let Ok(chunk) = rx.recv_timeout(std::time::Duration::from_millis(200)) {
+                seen.push_str(&chunk);
+            }
+        }
+        let _ = session.child.kill();
+        assert!(seen.contains("scribe-42"), "shell output was: {seen:?}");
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn login_shell_path_is_usable() {
+        let path = login_shell_path().expect("the login shell should report a PATH");
+        assert!(path.split(':').any(|dir| dir == "/usr/bin"), "{path}");
     }
 
     #[test]

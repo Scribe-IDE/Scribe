@@ -125,18 +125,14 @@
           <header>
             <span>Terminal</span>
             <span class="term-actions">
-              <button id="term-stop" class="btn" disabled>Stop</button>
+              <button id="term-stop" class="btn" title="Interrupt what is running (Ctrl+C)">Stop</button>
               <button id="term-clear" class="btn">Clear</button>
               <button id="term-close" class="icon-btn" title="Hide terminal" aria-label="Hide terminal">
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
               </button>
             </span>
           </header>
-          <pre id="term-output" aria-live="polite"></pre>
-          <label class="term-line">
-            <span class="term-prompt" aria-hidden="true">$</span>
-            <input id="term-input" type="text" spellcheck="false" autocomplete="off" autocapitalize="off" aria-label="Terminal input" />
-          </label>
+          <div id="term-host"></div>
         </section>
       </section>
       <div class="splitter" data-split="pdf" role="separator" aria-orientation="vertical" aria-label="Resize preview" tabindex="0"></div>
