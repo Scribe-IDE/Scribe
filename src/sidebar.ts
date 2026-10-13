@@ -5,12 +5,15 @@ import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { COMMAND_ICONS, ICONS } from "./icons";
 import { openContextMenu } from "./menubar";
 import { openPalette, promptInput } from "./palette";
-import { $, baseName, CREATABLE, current, dirty, GIT_CLASS, GIT_LABEL, insideProject, listed, mainFile, NOTEBOOK_SOURCE, PAGE, parentOf, renderCrumb, root, setCurrent, setMainFile, setStatus, svg } from "./core";
+import { $, baseName, CREATABLE, current, VIEWABLE, dirty, GIT_CLASS, GIT_LABEL, insideProject, listed, mainFile, NOTEBOOK_SOURCE, PAGE, parentOf, renderCrumb, root, setCurrent, setMainFile, setStatus, svg } from "./core";
 import { renderGallery } from "./gallery";
+import { renderGit } from "./git";
 import { sizes, togglePane } from "./layout";
 import { emptyIpynb } from "./notebook";
+import { renderOutline } from "./outline";
 import { listDirs, listFiles, openFile, revealLine, save } from "./project";
 import { saveSettings, settings } from "./settings";
+import { openToSide, sideGone, sideMoved } from "./split";
 import { refreshBranch } from "./statusbar";
 import { dropTabs, renameTabs } from "./tabs";
 import { NotebookInfo } from "./types";
@@ -104,6 +107,7 @@ export function applyMove(from: string, to: string, isDir: boolean) {
   setMainFile(moved(mainFile));
   if (isDir && collapsedDirs.delete(from)) collapsedDirs.add(to);
   renameTabs(moved);
+  sideMoved(moved);
   renderCrumb();
 }
 
@@ -123,7 +127,9 @@ export async function deleteEntry(rel: string, isDir: boolean) {
     return;
   }
   // Tabs on deleted files close without saving them back into existence.
-  await dropTabs((tab) => tab === rel || (isDir && tab.startsWith(`${rel}/`)));
+  const gone = (path: string) => path === rel || (isDir && path.startsWith(`${rel}/`));
+  sideGone(gone);
+  await dropTabs(gone);
   await refreshFiles();
 }
 
@@ -171,6 +177,7 @@ export function fileRow(f: string, dir: string, gitMap: Map<string, string>): HT
     e.stopPropagation();
     openContextMenu(e.clientX, e.clientY, [
       { title: "Open", icon: ICONS.page, run: () => openFile(f) },
+      { title: "Open to the Side", icon: ICONS.split, enabled: !VIEWABLE.test(f) && !f.endsWith(".ipynb"), run: () => openToSide(f) },
       "-",
       { title: "New File…", icon: COMMAND_ICONS["file.new"], run: () => newFile(dir) },
       { title: "New Notebook…", icon: ICONS.notebook, run: () => newFile(dir, "untitled.ipynb") },
@@ -394,20 +401,28 @@ export async function refreshFiles() {
     }
   }
   box.replaceChildren(frag);
+  renderGit(); // the same change that redrew the list changes what git sees
 }
 
 // ---------- sidebar tabs ----------
-export function showSidebar(which: "files" | "search" | "figures") {
-  const search = which === "search";
+export type SidebarTab = "files" | "search" | "figures" | "outline" | "git";
+
+const PANEL: Record<SidebarTab, string> = {
+  files: "files", search: "search-panel", figures: "figures-panel", outline: "outline-panel", git: "git-panel",
+};
+
+export function showSidebar(which: SidebarTab) {
   if (sizes.hideSidebar) togglePane("sidebar");
-  $("files").hidden = which !== "files";
-  $("search-panel").hidden = !search;
-  $("figures-panel").hidden = which !== "figures";
-  $("tab-files").setAttribute("aria-selected", String(which === "files"));
-  $("tab-search").setAttribute("aria-selected", String(search));
-  $("tab-figures").setAttribute("aria-selected", String(which === "figures"));
+  for (const tab of Object.keys(PANEL) as SidebarTab[]) {
+    $(PANEL[tab]).hidden = tab !== which;
+    $(`tab-${tab}`).setAttribute("aria-selected", String(tab === which));
+  }
+  // New file / folder only make sense beside the file list.
+  $("side-new").hidden = $("side-new-folder").hidden = which !== "files";
   if (which === "figures") renderGallery();
-  if (search) {
+  if (which === "outline") renderOutline();
+  if (which === "git") renderGit();
+  if (which === "search") {
     const input = $<HTMLInputElement>("search-input");
     input.focus();
     input.select();

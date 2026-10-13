@@ -6,6 +6,7 @@ import { renderPdf } from "./preview";
 import { problemSummary, setProblems } from "./problems";
 import { listFiles, save } from "./project";
 import { settings } from "./settings";
+import { saveSide, sideFocused } from "./split";
 import { refreshIndexSoon } from "./texindex";
 import { refreshFiles } from "./sidebar";
 import { CompileResult, NotebookInfo, RunResult } from "./types";
@@ -90,6 +91,7 @@ export async function compile() {
   $<HTMLButtonElement>("btn-compile").disabled = true;
   try {
     await save();
+    await saveSide(); // the side pane may hold part of the paper
 
     // auto-run stale notebooks before compiling
     if (!(await runStaleNotebooks())) return;
@@ -118,6 +120,7 @@ export async function compile() {
 
 /** What ⌘S does: save, then compile if the project is set to compile on save. */
 export async function saveFile() {
-  await save();
+  if (sideFocused()) await saveSide();
+  else await save();
   if (settings.compileOnSave && root && current && !VIEWABLE.test(current)) await compile();
 }

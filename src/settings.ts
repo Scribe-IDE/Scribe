@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { $, root } from "./core";
 import { editorPrefs, LineNumberStyle, prefEffects, view } from "./editor";
 import { cellPrefEffects, cellViews } from "./notebook";
+import { refreshSidePrefs } from "./split";
 import { refreshTerminalTheme } from "./terminal";
 
 // ---------- settings ----------
@@ -90,6 +91,7 @@ export function applySettings() {
     cellNumbers: settings.cellLineNumbers,
   });
   refreshTerminalTheme();
+  refreshSidePrefs();
   view.dispatch({ effects: prefEffects() });
   view.requestMeasure();
   for (const cellView of cellViews) {

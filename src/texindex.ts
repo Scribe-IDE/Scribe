@@ -60,6 +60,68 @@ export const scanFigureUses = (tex: string) => {
 export const scanValueUses = (tex: string) =>
   unique([...stripComments(tex).matchAll(/\\nb(?:val|table)\{([^{}]+)\}/g)].map((m) => m[1].trim()));
 
+export interface OutlineItem {
+  kind: "heading" | "figure" | "table" | "input";
+  /** Headings: 0 for \\part down to 5 for \\paragraph. */
+  level: number;
+  /** Heading text, caption, or (for inputs) the file named. */
+  title: string;
+  /** 1-based. */
+  line: number;
+}
+
+const HEADING_LEVEL: Record<string, number> = { part: 0, chapter: 1, section: 2, subsection: 3, subsubsection: 4, paragraph: 5 };
+
+/** The text inside the braces that open at `open`, following nested braces. */
+function braced(text: string, open: number): string {
+  let depth = 0;
+  for (let i = open; i < text.length; i++) {
+    if (text[i] === "\\") { i++; continue; }
+    if (text[i] === "{") depth++;
+    else if (text[i] === "}" && --depth === 0) return text.slice(open + 1, i);
+  }
+  return text.slice(open + 1);
+}
+
+/** Readable text from a LaTeX fragment: formatting commands dropped, their contents kept. */
+const plain = (tex: string) =>
+  tex.replace(/\\(?:label|ref|cite\w*)\{[^{}]*\}/g, "").replace(/\\[a-zA-Z]+\*?|[{}~]|\\\\/g, " ").replace(/\s+/g, " ").trim();
+
+/** Headings, floats and \\input lines of one file, in order. */
+export function scanOutline(tex: string): OutlineItem[] {
+  const items: OutlineItem[] = [];
+  const lines = stripComments(tex).split("\n");
+  let float: OutlineItem | null = null;
+  lines.forEach((text, i) => {
+    const line = i + 1;
+    const heading = /\\(part|chapter|section|subsection|subsubsection|paragraph)\*?(?:\[[^\]]*\])?\{/.exec(text);
+    if (heading) {
+      // A title can run over several lines; look ahead a little for its closing brace.
+      const rest = lines.slice(i, i + 4).join(" ");
+      const title = plain(braced(rest, rest.indexOf("{", rest.indexOf(heading[0]))));
+      items.push({ kind: "heading", level: HEADING_LEVEL[heading[1]], title: title || heading[1], line });
+    }
+    const input = /\\(?:input|include|subfile)\{([^{}]+)\}/.exec(text);
+    if (input) items.push({ kind: "input", level: 0, title: input[1].trim(), line });
+
+    const begin = /\\begin\{(figure|table)\*?\}/.exec(text);
+    if (begin) {
+      float = { kind: begin[1] as "figure" | "table", level: 0, title: begin[1] === "figure" ? "Figure" : "Table", line };
+      items.push(float);
+    }
+    if (float) {
+      const caption = text.indexOf("\\caption");
+      if (caption !== -1) {
+        const rest = lines.slice(i, i + 4).join(" ");
+        const open = rest.indexOf("{", rest.indexOf("\\caption"));
+        if (open !== -1) float.title = plain(braced(rest, open)) || float.title;
+      }
+      if (/\\end\{(figure|table)\*?\}/.test(text)) float = null;
+    }
+  });
+  return items;
+}
+
 /** A stored value as a person would read it: without the LaTeX escaping, tables as one word. */
 export const displayValue = (value: string | null) =>
   value === null ? "not run yet" : value.includes("\\begin{tabular}") ? "table" : value.replace(/\\([%&#_$])/g, "$1");

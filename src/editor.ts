@@ -19,6 +19,7 @@ import { autocompletion, closeBrackets, closeBracketsKeymap, Completion, Complet
 import { tags as t } from "@lezer/highlight";
 import { compile, saveFile } from "./build";
 import { $, current, setDirty } from "./core";
+import { outlineChanged } from "./outline";
 import { reportCursor } from "./statusbar";
 import { closeTab } from "./tabs";
 import { displayValue, index, scanLabels } from "./texindex";
@@ -289,8 +290,17 @@ export function completionFor(path: string): Extension {
   return autocompletion();
 }
 
-/** A fresh editor state for one file: its own undo history, language and completion. */
-export function createEditorState(doc: string, path: string): EditorState {
+/** What an editor does when its text changes or the user saves from inside it. */
+export interface EditorHooks { onChange(): void; onSave(): void; }
+
+const mainHooks: EditorHooks = {
+  onChange: () => { if (current) setDirty(true); },
+  onSave: () => { saveFile(); },
+};
+
+/** A fresh editor state for one file: its own undo history, language and completion.
+ *  The side pane passes its own hooks; everything else uses the main file's. */
+export function createEditorState(doc: string, path: string, hooks: EditorHooks = mainHooks): EditorState {
   return EditorState.create({
     doc,
     extensions: [
@@ -304,11 +314,14 @@ export function createEditorState(doc: string, path: string): EditorState {
       themeConf.of(editorTheme(editorPrefs.dark)),
       EditorView.lineWrapping,
       keymap.of([
-        { key: "Mod-s", preventDefault: true, run: () => (saveFile(), true) },
+        { key: "Mod-s", preventDefault: true, run: () => (hooks.onSave(), true) },
         { key: "Mod-Enter", preventDefault: true, run: () => (compile(), true) },
       ]),
       EditorView.updateListener.of((u) => {
-        if (u.docChanged && current) setDirty(true);
+        if (u.docChanged) {
+          hooks.onChange();
+          outlineChanged();
+        }
         reportCursor(u.view);
       }),
     ],

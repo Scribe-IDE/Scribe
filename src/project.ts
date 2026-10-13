@@ -9,6 +9,7 @@ import { createEditorState, prefEffects, view } from "./editor";
 import { isNotebook, leaveNotebook, saveNotebook, stopKernel, updateNotebookView } from "./notebook";
 import { resetPdf } from "./preview";
 import { loadSettings, resetSettings, toggleSettings } from "./settings";
+import { closeSide, sideFile } from "./split";
 import { renderFileInfo } from "./statusbar";
 import { refreshFiles } from "./sidebar";
 import { dropTabs, noteOpened, resetTabs, showNoFile, stashEditor, takeStashed } from "./tabs";
@@ -37,6 +38,7 @@ export async function openProject(path: string) {
     return;
   }
 
+  await closeSide();
   await stopKernel();
   await resetTerminal();
   setRoot(path);
@@ -63,6 +65,7 @@ export async function openProject(path: string) {
 export async function closeProject() {
   if (!root) return;
   if (dirty) await save();
+  await closeSide();
   await stopKernel();
   await resetTerminal();
   $("btn-run-file").hidden = true;
@@ -153,6 +156,7 @@ export async function showFilePreview(rel: string) {
 export async function openFile(rel: string) {
   if (!root) return;
   if (dirty) await save();
+  if (rel === sideFile) await closeSide(); // one editor per file: it moves to the main pane
   stashEditor(); // the file being left keeps its undo history, cursor and scroll
   if (VIEWABLE.test(rel)) {
     setCurrent(rel);

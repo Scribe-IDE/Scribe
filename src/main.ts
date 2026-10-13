@@ -17,10 +17,11 @@ import { $, baseName, current, logEl, logPanel, PAGE, root, setLogView, statusEl
 import { view } from "./editor";
 import { sizes, togglePane } from "./layout";
 import { activeCell, cellRunners, cellViews, isNotebook, restartKernel } from "./notebook";
-import { closeProject, openFolder, openProject } from "./project";
+import { closeProject, listFiles, openFolder, openProject } from "./project";
 import { canShowInPdf, focusPdfFind, hasPdf, lastPdf, showInPdf, zoomPdf } from "./preview";
 import { setCompileOnSave, setTheme, settings, toggleSettings, updateSettings, zoom } from "./settings";
 import { deleteEntry, newFile, newFolder, quickOpen, renameEntry, showSidebar } from "./sidebar";
+import { closeSide, openToSide, sideOpen, sideView } from "./split";
 import { renderProblemCount } from "./statusbar";
 import { closeTab, openTabs } from "./tabs";
 import { canRunFile, runFile, shellAlive, showTerminal, stopTerminal, termPanel } from "./terminal";
@@ -49,6 +50,7 @@ const editorVisible = () => !!current && !$("editor").hidden;
 
 // The CodeMirror instance edit commands should act on: the main editor, or the active notebook cell.
 function targetView(): EditorView | null {
+  if (sideView?.dom.contains(document.activeElement)) return sideView;
   if (editorVisible()) return view;
   return isNotebook() ? cellViews[activeCell] ?? null : null;
 }
@@ -123,6 +125,10 @@ register(
   { id: "view.quickOpen", group: "View", title: "Go to File…", keys: "Mod-p", run: quickOpen, enabled: hasProject },
   { id: "view.files", group: "View", title: "Show Files", enabled: hasProject, run: () => showSidebar("files") },
   { id: "view.figures", group: "View", title: "Show Figures", enabled: hasProject, run: () => showSidebar("figures") },
+  { id: "view.outline", group: "View", title: "Show Outline", enabled: hasProject, run: () => showSidebar("outline") },
+  { id: "view.git", group: "View", title: "Show Git", enabled: hasProject, run: () => showSidebar("git") },
+  { id: "view.openSide", group: "View", title: "Open to the Side…", enabled: hasProject, run: pickSideFile },
+  { id: "view.closeSide", group: "View", title: "Close Side Pane", enabled: sideOpen, run: closeSide },
   { id: "view.pdfZoomIn", group: "View", title: "Zoom In PDF", enabled: hasPdf, run: () => zoomPdf(1.2) },
   { id: "view.pdfZoomOut", group: "View", title: "Zoom Out PDF", enabled: hasPdf, run: () => zoomPdf(1 / 1.2) },
   { id: "view.pdfFit", group: "View", title: "Fit PDF to Width", enabled: hasPdf, run: () => zoomPdf("fit") },
@@ -177,6 +183,19 @@ register(
 
 for (const command of allCommands()) command.icon = COMMAND_ICONS[command.id];
 
+// Choose a text file to open beside the current one.
+async function pickSideFile() {
+  const files = (await listFiles()).filter((f) => !VIEWABLE.test(f) && !f.endsWith(".ipynb") && f !== current && /\.(tex|py|bib|sty|cls|txt|md)$/.test(f));
+  openPalette({
+    placeholder: "Open to the side",
+    empty: "No other text files in this project.",
+    items: files.map((f) => {
+      const cut = f.lastIndexOf("/") + 1;
+      return { label: f.slice(cut), detail: f.slice(0, cut), run: () => openToSide(f) };
+    }),
+  });
+}
+
 function commandPalette() {
   openPalette({
     placeholder: "Run a command",
@@ -221,7 +240,8 @@ createMenubar($("menubar"), [
     icon: MENU_ICON.view,
     entries: [
       "view.palette", "view.quickOpen", "-",
-      "view.files", "edit.findInProject", "view.figures", "-",
+      "view.files", "edit.findInProject", "view.figures", "view.outline", "view.git", "-",
+      "view.openSide", "view.closeSide", "-",
       "view.sidebar", "view.preview", "view.log", "view.terminal", "-",
       { title: "Theme", icon: ICONS.theme, submenu: () => ["view.themeDark", "view.themeLight"] }, "-",
       "view.vim", "view.relativeNumbers", "-",
@@ -243,6 +263,8 @@ $("welcome-new").onclick = newProject;
 $("tab-files").onclick = () => showSidebar("files");
 $("tab-search").onclick = () => showSidebar("search");
 $("tab-figures").onclick = () => showSidebar("figures");
+$("tab-outline").onclick = () => showSidebar("outline");
+$("tab-git").onclick = () => showSidebar("git");
 $("side-new").onclick = () => runCommand("file.new");
 $("side-new-folder").onclick = () => runCommand("file.newFolder");
 // Right-click on the empty part of the file list: actions for the project root.

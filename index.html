@@ -71,18 +71,11 @@
     <main id="layout">
       <aside id="sidebar">
         <div class="side-tabs" role="tablist">
-          <button id="tab-files" role="tab" aria-selected="true" aria-controls="files">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 4.5V2.75a.5.5 0 01.5-.5h4.25L13 5v6.75a.5.5 0 01-.5.5h-2"/><path d="M3 5a.5.5 0 01.5-.5h4.25L10.5 7.25v6a.5.5 0 01-.5.5H3.5a.5.5 0 01-.5-.5V5z"/></svg>
-            Files
-          </button>
-          <button id="tab-search" role="tab" aria-selected="false" aria-controls="search-panel" title="Search project (⇧⌘F)">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="7" r="4.25"/><path d="M10.25 10.25L13.5 13.5"/></svg>
-            Search
-          </button>
-          <button id="tab-figures" role="tab" aria-selected="false" aria-controls="figures-panel" title="Figures and values from the notebooks">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2.75" width="12" height="10.5" rx="1.5"/><path d="M4.5 10.5l2.25-2.5 1.75 1.75 1.5-1.5 1.5 2.25"/></svg>
-            Figures
-          </button>
+          <button id="tab-files" role="tab" aria-selected="true" aria-controls="files" title="Files" aria-label="Files"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 4.5V2.75a.5.5 0 01.5-.5h4.25L13 5v6.75a.5.5 0 01-.5.5h-2"/><path d="M3 5a.5.5 0 01.5-.5h4.25L10.5 7.25v6a.5.5 0 01-.5.5H3.5a.5.5 0 01-.5-.5V5z"/></svg></button>
+          <button id="tab-search" role="tab" aria-selected="false" aria-controls="search-panel" title="Search project (⇧⌘F)" aria-label="Search"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="7" r="4.25"/><path d="M10.25 10.25L13.5 13.5"/></svg></button>
+          <button id="tab-outline" role="tab" aria-selected="false" aria-controls="outline-panel" title="Outline of the paper" aria-label="Outline"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 3.5h11M5 6.5h8.5M5 9.5h8.5M7.5 12.5h6"/></svg></button>
+          <button id="tab-figures" role="tab" aria-selected="false" aria-controls="figures-panel" title="Figures and values from the notebooks" aria-label="Figures"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2.75" width="12" height="10.5" rx="1.5"/><path d="M4.5 10.5l2.25-2.5 1.75 1.75 1.5-1.5 1.5 2.25"/></svg></button>
+          <button id="tab-git" role="tab" aria-selected="false" aria-controls="git-panel" title="Git: changes, commit, history" aria-label="Git"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="4.5" cy="3.75" r="1.5"/><circle cx="4.5" cy="12.25" r="1.5"/><circle cx="11.5" cy="5.75" r="1.5"/><path d="M4.5 5.25v5.5M11.5 7.25c0 2.25-2.25 2.5-4 2.75-1.5.2-3 .5-3 1"/></svg></button>
           <button id="side-new" class="icon-btn" title="New file" aria-label="New file">
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2.25H4.5a.5.5 0 00-.5.5v10.5a.5.5 0 00.5.5h7a.5.5 0 00.5-.5V8.5"/><path d="M12 2v4M10 4h4"/></svg>
           </button>
@@ -92,6 +85,8 @@
         </div>
         <div id="files" role="tabpanel"></div>
         <div id="figures-panel" role="tabpanel" hidden></div>
+        <div id="outline-panel" role="tabpanel" hidden></div>
+        <div id="git-panel" role="tabpanel" hidden></div>
         <div id="search-panel" role="tabpanel" hidden>
           <input id="search-input" type="text" placeholder="Search in project" aria-label="Search in project" spellcheck="false" autocomplete="off" />
           <div id="search-results" class="search-results"></div>
@@ -100,6 +95,8 @@
       <div class="splitter" data-split="sidebar" role="separator" aria-orientation="vertical" aria-label="Resize sidebar" tabindex="0"></div>
       <section id="editor-pane">
         <div id="tabs" role="tablist" aria-label="Open files" hidden></div>
+        <div id="work">
+        <div id="work-main">
         <div id="no-file" class="no-file" hidden>
           <p>No file open.</p>
           <p>Pick one from the list, or press <kbd>⌘</kbd><kbd>P</kbd> to go to a file.</p>
@@ -107,6 +104,18 @@
         <div id="editor"></div>
         <div id="notebook-view" class="notebook-view" hidden></div>
         <div id="file-preview" hidden></div>
+        </div>
+        <div id="split-handle" class="split-handle" role="separator" aria-orientation="vertical" aria-label="Resize side pane" hidden></div>
+        <section id="work-side" aria-label="Side pane" hidden>
+          <header>
+            <span id="side-title" title="Double-click to move this file to the main pane"></span>
+            <button id="side-close" class="icon-btn" title="Close side pane" aria-label="Close side pane">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg>
+            </button>
+          </header>
+          <div id="side-body"></div>
+        </section>
+        </div>
         <section id="log-panel" hidden>
           <header>
             <span id="log-title">Log</span>

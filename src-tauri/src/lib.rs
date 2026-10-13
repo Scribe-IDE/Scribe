@@ -692,34 +692,165 @@ fn git_branch(root: String) -> Option<String> {
     (out.status.success() && !branch.is_empty()).then_some(branch)
 }
 
-#[tauri::command]
-fn git_status(root: String) -> Result<Vec<GitFileStatus>, String> {
-    let root_dir = Path::new(&root).canonicalize().map_err(|e| e.to_string())?;
-    let out = Command::new("git")
-        .args(["status", "--porcelain", "-uall"])
-        .current_dir(&root_dir)
-        .output();
-    let out = match out {
-        Ok(o) if o.status.success() => o,
-        _ => return Ok(vec![]),
-    };
-    let stdout = String::from_utf8_lossy(&out.stdout);
-    let statuses = stdout
-        .lines()
+/// Runs git in the project folder. Never waits on a terminal prompt: a push that needs
+/// credentials fails with git's message instead of hanging the app.
+fn git(root_dir: &Path, args: &[&str]) -> Result<std::process::Output, String> {
+    Command::new("git")
+        .args(args)
+        .current_dir(root_dir)
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .output()
+        .map_err(|e| format!("git: {e}"))
+}
+
+fn git_text(root_dir: &Path, args: &[&str]) -> Option<String> {
+    let out = git(root_dir, args).ok()?;
+    out.status.success().then(|| String::from_utf8_lossy(&out.stdout).trim().to_string())
+}
+
+/// git's own message when a command fails, for showing to the user.
+fn git_run(root_dir: &Path, args: &[&str]) -> Result<String, String> {
+    let out = git(root_dir, args)?;
+    let stdout = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if out.status.success() {
+        return Ok(stdout);
+    }
+    let stderr = String::from_utf8_lossy(&out.stderr).trim().to_string();
+    Err(if stderr.is_empty() { stdout } else { stderr })
+}
+
+/// Changed files, with paths relative to the project root (which may be a subfolder of the
+/// repository; changes elsewhere in the repository are left out).
+fn git_changes(root_dir: &Path) -> Vec<GitFileStatus> {
+    let Some(stdout) = git_text(root_dir, &["status", "--porcelain", "-uall"]) else { return vec![] };
+    let prefix = git_text(root_dir, &["rev-parse", "--show-prefix"]).unwrap_or_default();
+    // git_text trims, which would eat the leading space of " M file" on the first line.
+    let raw = git(root_dir, &["status", "--porcelain", "-uall"])
+        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+        .unwrap_or(stdout);
+    raw.lines()
         .filter(|l| l.len() >= 4)
-        .map(|line| {
+        .filter_map(|line| {
             let xy = line[..2].trim();
-            let path = line[3..].trim().to_string();
+            // Renames read "old -> new"; the new path is the one that exists.
+            let path = line[3..].rsplit(" -> ").next().unwrap_or("").trim().trim_matches('"');
+            let path = path.strip_prefix(prefix.as_str())?;
             let status = match xy {
                 "??" => "?",
                 s if s.contains('A') => "A",
                 s if s.contains('D') => "D",
                 _ => "M",
             };
-            GitFileStatus { path, status: status.into() }
+            Some(GitFileStatus { path: path.to_string(), status: status.into() })
         })
-        .collect();
-    Ok(statuses)
+        .collect()
+}
+
+#[tauri::command]
+fn git_status(root: String) -> Result<Vec<GitFileStatus>, String> {
+    let root_dir = Path::new(&root).canonicalize().map_err(|e| e.to_string())?;
+    Ok(git_changes(&root_dir))
+}
+
+#[derive(Serialize)]
+struct GitCommit {
+    hash: String,
+    subject: String,
+    /// "3 hours ago"
+    when: String,
+}
+
+#[derive(Serialize)]
+struct GitOverview {
+    /// False when the project is not inside a git repository.
+    repo: bool,
+    branch: Option<String>,
+    has_remote: bool,
+    changes: Vec<GitFileStatus>,
+    log: Vec<GitCommit>,
+}
+
+#[tauri::command]
+async fn git_overview(root: String) -> Result<GitOverview, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let root_dir = Path::new(&root).canonicalize().map_err(|e| e.to_string())?;
+        let repo = git_text(&root_dir, &["rev-parse", "--is-inside-work-tree"]).as_deref() == Some("true");
+        if !repo {
+            return Ok(GitOverview { repo, branch: None, has_remote: false, changes: vec![], log: vec![] });
+        }
+        let log = git_text(&root_dir, &["log", "-n", "15", "--pretty=format:%h%x1f%s%x1f%cr", "--", "."])
+            .unwrap_or_default()
+            .lines()
+            .filter_map(|line| {
+                let mut parts = line.split('\x1f');
+                Some(GitCommit { hash: parts.next()?.into(), subject: parts.next()?.into(), when: parts.next()?.into() })
+            })
+            .collect();
+        Ok(GitOverview {
+            repo,
+            // A new repository has no commit for HEAD to name yet.
+            branch: git_text(&root_dir, &["symbolic-ref", "--short", "HEAD"]),
+            has_remote: git_text(&root_dir, &["remote"]).is_some_and(|r| !r.is_empty()),
+            changes: git_changes(&root_dir),
+            log,
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// What changed in one file since the last commit, as a unified diff.
+#[tauri::command]
+fn git_diff(root: String, rel: String) -> Result<String, String> {
+    let path = resolve(&root, &rel)?;
+    let root_dir = Path::new(&root).canonicalize().map_err(|e| e.to_string())?;
+    let tracked = git(&root_dir, &["ls-files", "--error-unmatch", "--", &rel]).is_ok_and(|o| o.status.success());
+    let has_head = git_text(&root_dir, &["rev-parse", "--verify", "HEAD"]).is_some();
+    let out = if tracked && has_head {
+        git(&root_dir, &["diff", "HEAD", "--", &rel])?
+    } else if path.is_file() {
+        // New file: everything in it is an addition. (--no-index exits 1 when the files differ.)
+        git(&root_dir, &["diff", "--no-index", "--", "/dev/null", &rel])?
+    } else {
+        return Ok(String::new());
+    };
+    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
+/// Commits every change in the project folder.
+#[tauri::command]
+async fn git_commit(root: String, message: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if message.trim().is_empty() {
+            return Err("Write a commit message first.".into());
+        }
+        let root_dir = Path::new(&root).canonicalize().map_err(|e| e.to_string())?;
+        git_run(&root_dir, &["add", "-A", "--", "."])?;
+        git_run(&root_dir, &["commit", "-m", message.trim()])
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn git_push(root: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let root_dir = Path::new(&root).canonicalize().map_err(|e| e.to_string())?;
+        // A branch that has never been pushed needs its upstream set the first time.
+        if git_text(&root_dir, &["rev-parse", "--abbrev-ref", "@{upstream}"]).is_some() {
+            git_run(&root_dir, &["push"])
+        } else {
+            git_run(&root_dir, &["push", "-u", "origin", "HEAD"])
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn git_init(root: String) -> Result<String, String> {
+    let root_dir = Path::new(&root).canonicalize().map_err(|e| e.to_string())?;
+    git_run(&root_dir, &["init"])
 }
 
 // ---------- project search ----------
@@ -1162,7 +1293,7 @@ pub fn run() {
             list_files, list_dirs, create_dir, rename_path, delete_path,
             read_file, write_file, read_binary, compile,
             parse_notebook, run_notebook, generate_style,
-            git_status, git_branch, search_project, read_settings, write_settings,
+            git_status, git_branch, git_overview, git_diff, git_commit, git_push, git_init, search_project, read_settings, write_settings,
             kernel_start, kernel_run_cell, kernel_stop,
             python_bin, check_tools, pty_start, pty_write, pty_resize, pty_kill,
             synctex_edit, synctex_view
@@ -1276,6 +1407,41 @@ mod tests {
     fn login_shell_path_is_usable() {
         let path = login_shell_path().expect("the login shell should report a PATH");
         assert!(path.split(':').any(|dir| dir == "/usr/bin"), "{path}");
+    }
+
+    #[test]
+    fn git_panel_commands_work_on_a_fresh_repository() {
+        let dir = std::env::temp_dir().join(format!("scribe-git-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let root = dir.to_string_lossy().to_string();
+        let root_dir = dir.canonicalize().unwrap();
+        if git_init(root.clone()).is_err() {
+            return; // no git on this machine
+        }
+        // Commits need an identity; don't depend on the machine's global config.
+        git_run(&root_dir, &["config", "user.email", "test@example.org"]).unwrap();
+        git_run(&root_dir, &["config", "user.name", "Test"]).unwrap();
+
+        write_file(root.clone(), "main.tex".into(), "one\n".into()).unwrap();
+        let changes = git_changes(&root_dir);
+        assert_eq!((changes[0].path.as_str(), changes[0].status.as_str()), ("main.tex", "?"));
+        assert!(git_diff(root.clone(), "main.tex".into()).unwrap().contains("+one"));
+
+        // Empty messages are refused; a real one commits everything.
+        assert!(tauri::async_runtime::block_on(git_commit(root.clone(), "  ".into())).is_err());
+        tauri::async_runtime::block_on(git_commit(root.clone(), "First".into())).unwrap();
+        assert!(git_changes(&root_dir).is_empty());
+
+        write_file(root.clone(), "main.tex".into(), "one\ntwo\n".into()).unwrap();
+        let diff = git_diff(root.clone(), "main.tex".into()).unwrap();
+        assert!(diff.contains("+two") && !diff.contains("+one"), "{diff}");
+        let overview = tauri::async_runtime::block_on(git_overview(root.clone())).unwrap();
+        assert!(overview.repo && !overview.has_remote);
+        assert_eq!(overview.log[0].subject, "First");
+        assert_eq!(overview.changes[0].status, "M");
+        assert!(git_diff(root.clone(), "../outside".into()).is_err());
+
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]
