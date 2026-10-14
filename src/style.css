@@ -1714,6 +1714,7 @@ body.dragging-file #files * { cursor: grabbing; }
 }
 
 #pdf-page-label { flex-shrink: 0; font-variant-numeric: tabular-nums; }
+#pdf-download { flex-shrink: 0; width: 24px; height: 24px; margin-left: -2px; }
 #pdf-find { flex: 1; min-width: 60px; max-width: 220px; height: 24px; margin-left: auto; font-size: 12px; }
 #pdf-find-count { flex-shrink: 0; min-width: 7ch; font-variant-numeric: tabular-nums; }
 .pdf-zoom { display: flex; align-items: center; flex-shrink: 0; }

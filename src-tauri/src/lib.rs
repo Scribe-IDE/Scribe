@@ -377,6 +377,17 @@ fn write_binary(request: tauri::ipc::Request<'_>) -> Result<(), String> {
     std::fs::rename(&tmp, &path).map_err(|e| e.to_string())
 }
 
+/// Copies a project file to a place outside the project the user picked in a save dialog
+/// (downloading the compiled PDF).
+#[tauri::command]
+fn copy_out(root: String, rel: String, dest: String) -> Result<(), String> {
+    let from = resolve(&root, &rel)?;
+    if !from.is_file() {
+        return Err(format!("{rel} doesn't exist yet. Compile first."));
+    }
+    std::fs::copy(&from, &dest).map(|_| ()).map_err(|e| format!("Couldn't save the copy: {e}"))
+}
+
 #[tauri::command]
 fn read_binary(root: String, rel: String) -> Result<tauri::ipc::Response, String> {
     let bytes = std::fs::read(resolve(&root, &rel)?).map_err(|e| e.to_string())?;

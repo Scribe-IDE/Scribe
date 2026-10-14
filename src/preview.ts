@@ -5,7 +5,8 @@ import { EditorView } from "codemirror";
 import * as pdfjs from "pdfjs-dist";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
-import { $, clamp, current, root, setStatus } from "./core";
+import { save } from "@tauri-apps/plugin-dialog";
+import { $, baseName, clamp, current, root, setStatus } from "./core";
 import { view } from "./editor";
 import { sizes, togglePane } from "./layout";
 import { revealLine } from "./project";
@@ -380,3 +381,20 @@ export async function showInPdf() {
     setStatus(String(err), "err");
   }
 }
+
+// ---------- saving a copy of the PDF ----------
+/** Save the PDF in the preview wherever the user chooses, named after the project. */
+export async function downloadPdf() {
+  if (!root || !lastPdf) return;
+  const name = `${baseName(root)}.pdf`;
+  const dest = await save({ title: "Save the PDF", defaultPath: name, filters: [{ name: "PDF", extensions: ["pdf"] }] });
+  if (!dest) return;
+  try {
+    await invoke("copy_out", { root, rel: lastPdf, dest });
+    setStatus(`Saved ${baseName(dest)}`, "ok");
+  } catch (e) {
+    setStatus(String(e), "err");
+  }
+}
+
+$("pdf-download").onclick = downloadPdf;
