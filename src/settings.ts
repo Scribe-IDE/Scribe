@@ -2,6 +2,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { $, root } from "./core";
 import { editorPrefs, LineNumberStyle, prefEffects, view } from "./editor";
+import { mathPrefs } from "./mathpreview";
 import { cellPrefEffects, cellViews } from "./notebook";
 import { refreshSpelling, spellPrefs } from "./spell";
 import { refreshSidePrefs, sideView } from "./split";
@@ -97,6 +98,8 @@ export function applySettings() {
   $<HTMLInputElement>("setting-cell-numbers").checked = settings.cellLineNumbers;
   $<HTMLInputElement>("setting-spell").checked = settings.spellCheck;
   spellPrefs.on = settings.spellCheck;
+  $<HTMLInputElement>("setting-math").checked = settings.mathPreview;
+  mathPrefs.on = settings.mathPreview;
 
   Object.assign(editorPrefs, {
     dark: settings.theme === "dark",

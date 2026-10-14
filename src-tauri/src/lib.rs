@@ -361,7 +361,7 @@ const VALUES_JSON: &str = ".scribe/values.json";
 fn value_names(cells: &[NotebookCell]) -> Vec<String> {
     let mut names = Vec::new();
     for cell in cells.iter().filter(|c| c.cell_type != "markdown") {
-        for call in ["nbval(", "nbtable("] {
+        for call in ["nbval(", "nbtable(", "nbmath("] {
             for (at, _) in cell.source.match_indices(call) {
                 // Skip things like `my_nbval(`.
                 if cell.source[..at].chars().next_back().is_some_and(|c| c.is_alphanumeric() || c == '_') {
@@ -548,9 +548,10 @@ fn parse_notebook(root: String, rel: String) -> Result<NotebookInfo, String> {
     Ok(NotebookInfo { cells, figure_ids, value_names, stale })
 }
 
-/// Python available in every notebook: `nbval(name, value)` and `nbtable(name, rows)` export
-/// results that the paper reads back with \nbval{name} / \nbtable{name}.
+/// Python available in every notebook. `nbval`, `nbmath` and `nbtable` export results that the
+/// paper reads back with \nbval{name}, \nbmath{name} and \nbtable{name}.
 const VALUES_PRELUDE: &str = r##"
+import math as _scribe_math
 import re as _scribe_re
 
 _scribe_values = {}
@@ -559,49 +560,175 @@ def _scribe_tex(value):
     # Escape the characters that would otherwise break or silently change the LaTeX.
     return _scribe_re.sub(r'(?<!\\)([%&#_$])', r'\\\1', str(value))
 
-def nbval(name, value, raw=False):
-    """Export a value to the paper as \\nbval{name}. Pass raw=True to write LaTeX as-is."""
-    _scribe_values[str(name)] = str(value) if raw else _scribe_tex(value)
+def _scribe_number(value, err=None, sig=None):
+    """A number as siunitx input, rounded the way measurements are reported: the uncertainty
+    to one significant figure (two when it starts with 1), the value to the same place."""
+    v = float(value)
+    e = abs(float(err)) if err is not None else 0.0
+    if e > 0:
+        lead = _scribe_math.floor(_scribe_math.log10(e))
+        digits = sig or (2 if int(e / 10 ** lead + 1e-9) == 1 else 1)
+        place = lead - (digits - 1)
+    elif sig and v != 0:
+        place = _scribe_math.floor(_scribe_math.log10(abs(v))) - (sig - 1)
+    else:
+        return "%.12g" % v
+    v, e = round(v, -place), round(e, -place)
+    exp = _scribe_math.floor(_scribe_math.log10(abs(v))) if v != 0 else 0
+    sci = exp >= 5 or exp <= -4
+    scale = 10.0 ** exp if sci else 1.0
+    decimals = max(0, (exp if sci else 0) - place)
+    text = "%.*f" % (decimals, v / scale)
+    if e > 0:
+        text += " +- %.*f" % (decimals, e / scale)
+    if sci:
+        text += " e%d" % exp
+    return text
+
+def _scribe_is_number(value):
+    return not isinstance(value, (str, bool)) and hasattr(value, "__float__")
+
+def nbval(name, value, raw=False, unit=None, err=None, sig=None):
+    """Export a value to the paper as \\nbval{name}.
+
+    unit: a siunitx unit ("kg", "m/s^2", "\\percent"); err: its uncertainty; sig: significant
+    figures. With any of these the number is typeset by siunitx. raw=True writes LaTeX as-is."""
+    if raw:
+        text = str(value)
+    elif _scribe_is_number(value) and (unit is not None or err is not None or sig is not None):
+        number = _scribe_number(value, err, sig)
+        text = "\\qty{%s}{%s}" % (number, unit) if unit else "\\num{%s}" % number
+    elif unit is not None:
+        text = "%s~\\unit{%s}" % (_scribe_tex(value), unit)
+    else:
+        text = _scribe_tex(value)
+    _scribe_values[str(name)] = text
     return value
 
+def nbmath(name, expr):
+    """Export a formula to the paper as \\nbmath{name}, for use inside maths.
+    SymPy expressions are converted to LaTeX; a string is taken to be LaTeX already."""
+    if isinstance(expr, str):
+        text = expr
+    else:
+        try:
+            import sympy
+            text = sympy.latex(expr)
+        except Exception:
+            text = str(expr)
+    _scribe_values[str(name)] = text
+    return expr
+
+def _scribe_cell(cell):
+    # (value, uncertainty) pairs are typeset as value +- uncertainty.
+    if isinstance(cell, tuple) and len(cell) == 2 and all(_scribe_is_number(c) for c in cell):
+        number = _scribe_number(cell[0], cell[1])
+        if " e" in number:
+            body, exp = number.rsplit(" e", 1)
+            return "$(%s) \\times 10^{%s}$" % (body.replace("+-", "\\pm"), exp)
+        return "$%s$" % number.replace("+-", "\\pm")
+    return _scribe_tex(cell)
+
 def nbtable(name, rows, header=None):
-    """Export rows (lists, or a pandas DataFrame) to the paper as \\nbtable{name}."""
+    """Export rows (lists, or a pandas DataFrame) to the paper as \\nbtable{name}.
+    A cell given as (value, uncertainty) is written value +- uncertainty; columns of numbers
+    are right-aligned."""
     if hasattr(rows, "columns") and hasattr(rows, "values"):
         if header is None:
             header = [str(c) for c in rows.columns]
         rows = rows.values.tolist()
     rows = [list(r) for r in rows]
     width = max([len(r) for r in rows] + [len(header or [])] + [1])
-    line = lambda cells: " & ".join(_scribe_tex(c) for c in cells) + r" \\"
-    out = [r"\begin{tabular}{" + "l" * width + "}", r"\hline"]
+    numeric = lambda c: _scribe_is_number(c) or isinstance(c, tuple)
+    spec = "".join(
+        "r" if rows and all(i < len(r) and numeric(r[i]) for r in rows) else "l" for i in range(width)
+    )
+    line = lambda cells, fmt: " & ".join(fmt(c) for c in cells) + r" \\"
+    out = [r"\begin{tabular}{" + spec + "}", r"\hline"]
     if header:
-        out += [line(header), r"\hline"]
-    out += [line(r) for r in rows] + [r"\hline", r"\end{tabular}"]
+        out += [line(header, _scribe_tex), r"\hline"]
+    out += [line(r, _scribe_cell) for r in rows] + [r"\hline", r"\end{tabular}"]
     _scribe_values[str(name)] = "\n".join(out)
 "##;
 
-/// Appended to batch runs: merges this notebook's values into the project's store and rewrites
-/// the .tex file the paper inputs. The store is keyed by notebook so removed values disappear.
+/// Appended to batch runs: records how the run was made, merges this notebook's values into the
+/// project's store (keyed by notebook, so removed values disappear), and rewrites the .tex file
+/// the paper inputs.
 const VALUES_FOOTER: &str = r##"
-def _scribe_write_values(notebook):
-    import json, os
-    path = ".scribe/values.json"
-    try:
-        with open(path) as f:
-            store = json.load(f)
-    except Exception:
-        store = {}
-    if not _scribe_values and notebook not in store:
-        return
-    store[notebook] = _scribe_values
+def _scribe_finish(notebook):
+    import datetime, json, os, platform, subprocess, sys
     os.makedirs(".scribe", exist_ok=True)
-    with open(path, "w") as f:
+
+    def load(path):
+        try:
+            with open(path) as f:
+                data = json.load(f)
+        except Exception:
+            data = {}
+        # Notebooks that have since been deleted or renamed don't linger.
+        return {nb: v for nb, v in data.items() if os.path.exists(nb)}
+
+    def git(*args):
+        try:
+            return subprocess.run(["git", *args], capture_output=True, text=True, timeout=5).stdout.strip()
+        except Exception:
+            return ""
+
+    # How this run was made, so a result can be traced to the code and environment behind it.
+    packages = {}
+    for mod in ("numpy", "scipy", "pandas", "matplotlib", "sympy", "sklearn", "torch", "jax",
+                "tensorflow", "statsmodels", "seaborn"):
+        version = getattr(sys.modules.get(mod), "__version__", None)
+        if version:
+            packages[mod] = str(version)
+    commit = git("rev-parse", "--short", "HEAD")
+    if commit and git("status", "--porcelain", "--untracked-files=no"):
+        commit += " + uncommitted changes"
+    seed = None
+    for key in ("SEED", "SEEDS", "RANDOM_SEED", "seed", "seeds"):
+        if key in globals() and isinstance(globals()[key], (int, list, tuple, range)):
+            value = globals()[key]
+            seed = str(value) if isinstance(value, int) else ", ".join(str(s) for s in value)
+            break
+    runs = load(".scribe/runs.json")
+    runs[notebook] = {
+        "date": datetime.datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "python": platform.python_version(),
+        "packages": packages,
+        "commit": commit,
+        "seed": seed,
+    }
+    with open(".scribe/runs.json", "w") as f:
+        json.dump(runs, f, indent=1)
+
+    store = load(".scribe/values.json")
+    store[notebook] = _scribe_values
+    with open(".scribe/values.json", "w") as f:
         json.dump(store, f, indent=1)
+
+    env = [r"\begin{tabular}{ll}", r"\hline"]
+    for nb in sorted(runs):
+        run = runs[nb]
+        rows = [("Notebook", r"\texttt{%s}" % _scribe_tex(nb)), ("Python", run.get("python", ""))]
+        if run.get("packages"):
+            rows.append(("Packages", ", ".join("%s %s" % (k, v) for k, v in run["packages"].items())))
+        if run.get("seed"):
+            rows.append(("Random seed", run["seed"]))
+        if run.get("commit"):
+            rows.append(("Git commit", r"\texttt{%s}" % _scribe_tex(run["commit"])))
+        rows.append(("Last run", run.get("date", "")))
+        env += ["%s & %s \\\\" % (label, text if text.startswith("\\") else _scribe_tex(text)) for label, text in rows]
+        env.append(r"\hline")
+    env.append(r"\end{tabular}")
+
     with open("scribe-values.tex", "w") as f:
-        f.write("% Auto-generated by Scribe from nbval()/nbtable() calls in notebooks. Do not edit.\n")
+        f.write("% Auto-generated by Scribe from notebook runs. Do not edit.\n")
+        if any(cmd in text for values in store.values() for text in values.values() for cmd in ("\\qty{", "\\num{", "\\unit{")):
+            f.write("\\RequirePackage{siunitx}\n\\sisetup{separate-uncertainty=true}\n")
         for nb in sorted(store):
             for name, value in store[nb].items():
                 f.write("\\long\\expandafter\\def\\csname nbval@%s\\endcsname{%s}\n" % (name, value))
+        f.write("\\long\\expandafter\\def\\csname nbval@scribe-env\\endcsname{%s}\n" % "\n".join(env))
 "##;
 
 fn build_runner_script(cells: &[NotebookCell], rel: &str) -> String {
@@ -630,7 +757,7 @@ fn build_runner_script(cells: &[NotebookCell], rel: &str) -> String {
         }
     }
     script.push_str(VALUES_FOOTER);
-    script.push_str(&format!("_scribe_write_values({rel:?})\n"));
+    script.push_str(&format!("_scribe_finish({rel:?})\n"));
     script
 }
 
@@ -693,16 +820,22 @@ async fn run_notebook(root: String, rel: String) -> Result<RunResult, String> {
 
 /// The generated package. `pkg` is its name: scribe-figures, or papyrus-figures in projects
 /// created before the rename.
+/// Bumped whenever the generated package changes, so older copies are rewritten.
+const STYLE_MARK: &str = "Scribe package v3";
+
 fn style_source(pkg: &str) -> String {
     format!(
-        r#"% Auto-generated by Scribe. Do not edit.
+        r#"% Auto-generated by Scribe. Do not edit. ({STYLE_MARK})
 \NeedsTeXFormat{{LaTeX2e}}
 \ProvidesPackage{{{pkg}}}
 \RequirePackage{{graphicx}}
 \newcommand{{\nbfig}}[1]{{\includegraphics[width=\linewidth]{{figures/#1.pdf}}}}
-% Values and tables exported from notebooks with nbval("name", value) / nbtable("name", rows).
+% Results exported from notebooks with nbval(), nbmath() and nbtable().
 \newcommand{{\nbval}}[1]{{\@ifundefined{{nbval@#1}}{{\textbf{{??}}}}{{\csname nbval@#1\endcsname}}}}
 \newcommand{{\nbtable}}[1]{{\nbval{{#1}}}}
+\newcommand{{\nbmath}}[1]{{\nbval{{#1}}}}
+% How the notebooks were last run: Python, packages, seed, commit and date.
+\newcommand{{\nbenv}}{{\nbval{{scribe-env}}}}
 \InputIfFileExists{{scribe-values.tex}}{{}}{{}}
 "#
     )
@@ -717,10 +850,10 @@ fn generate_style(root: String) -> Result<(), String> {
         std::fs::write(&tmp, style_source(pkg)).map_err(|e| e.to_string())?;
         std::fs::rename(&tmp, &path).map_err(|e| e.to_string())
     };
-    // An existing generated package keeps its name; it is only rewritten when it predates \nbval.
+    // An existing generated package keeps its name; it is rewritten only when it is out of date.
     for pkg in ["scribe-figures", "papyrus-figures"] {
         if let Ok(existing) = std::fs::read_to_string(root_dir.join(format!("{pkg}.sty"))) {
-            return if existing.contains("\\nbval") { Ok(()) } else { write(pkg) };
+            return if existing.contains(STYLE_MARK) { Ok(()) } else { write(pkg) };
         }
     }
     write("scribe-figures")
@@ -998,16 +1131,21 @@ fn write_settings(root: String, content: String) -> Result<(), String> {
 const KERNEL_SCRIPT: &str = r#"
 import sys, json, io, traceback, contextlib, base64
 
-def nbval(name, value, raw=False):
+def nbval(name, value, raw=False, unit=None, err=None, sig=None):
     # Interactive runs only show the value; Compile / Run Notebooks is what writes it to the paper.
-    print("%s = %s" % (name, value))
+    shown = str(value) if err is None else "%s +- %s" % (value, err)
+    print("%s = %s%s" % (name, shown, " " + unit if unit else ""))
     return value
+
+def nbmath(name, expr):
+    print("%s = %s" % (name, expr))
+    return expr
 
 def nbtable(name, rows, header=None):
     print("%s:" % name)
     print(rows)
 
-ns = {"nbval": nbval, "nbtable": nbtable}
+ns = {"nbval": nbval, "nbmath": nbmath, "nbtable": nbtable}
 for line in sys.stdin:
     line = line.strip()
     if not line:
@@ -1103,6 +1241,185 @@ fn kernel_stop() -> Result<(), String> {
         let _ = state.child.wait();
     }
     Ok(())
+}
+
+// ---------- citations: BibTeX for a DOI or an arXiv ID ----------
+
+#[derive(Serialize, Debug)]
+struct Citation {
+    key: String,
+    bibtex: String,
+}
+
+fn http_get(url: &str, accept: Option<&str>) -> Result<String, String> {
+    let mut cmd = Command::new("curl");
+    cmd.args(["-sL", "--max-time", "20"]);
+    if let Some(accept) = accept {
+        cmd.args(["-H", &format!("Accept: {accept}")]);
+    }
+    let out = cmd.arg(url).output().map_err(|e| format!("couldn't reach the network: {e}"))?;
+    if !out.status.success() {
+        return Err("Couldn't reach the server. Check the internet connection.".into());
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
+/// "Knuth, D. E." or "Diederik P. Kingma" plus a year -> "knuth1984".
+fn citation_key(first_author: &str, year: &str) -> String {
+    let last = match first_author.split_once(',') {
+        Some((last, _)) => last.trim(),
+        None => first_author.split_whitespace().last().unwrap_or(""),
+    };
+    let last: String = last.chars().filter(|c| c.is_ascii_alphabetic()).collect::<String>().to_lowercase();
+    format!("{}{}", if last.is_empty() { "ref".into() } else { last }, year.trim())
+}
+
+/// Splits a BibTeX entry into its type and (name, value) fields, values without their delimiters.
+fn parse_bibtex(raw: &str) -> Option<(String, Vec<(String, String)>)> {
+    let raw = raw.trim();
+    let open = raw.find('{')?;
+    let kind = raw.strip_prefix('@')?[..open - 1].trim().to_lowercase();
+    let body = &raw[open + 1..raw.rfind('}')?];
+    // Fields are separated by the commas that sit outside every brace and quote.
+    let mut parts = Vec::new();
+    let (mut depth, mut quoted, mut start) = (0i32, false, 0usize);
+    for (i, c) in body.char_indices() {
+        match c {
+            '{' => depth += 1,
+            '}' => depth -= 1,
+            '"' if depth == 0 => quoted = !quoted,
+            ',' if depth == 0 && !quoted => {
+                parts.push(&body[start..i]);
+                start = i + 1;
+            }
+            _ => {}
+        }
+    }
+    parts.push(&body[start..]);
+    let fields = parts
+        .into_iter()
+        .skip(1) // the citation key
+        .filter_map(|part| {
+            let (name, value) = part.split_once('=')?;
+            let value = value.trim();
+            let value = value
+                .strip_prefix('{')
+                .and_then(|v| v.strip_suffix('}'))
+                .or_else(|| value.strip_prefix('"').and_then(|v| v.strip_suffix('"')))
+                .unwrap_or(value);
+            Some((name.trim().to_string(), value.trim().to_string()))
+        })
+        .collect();
+    Some((kind, fields))
+}
+
+fn format_bibtex(kind: &str, key: &str, fields: &[(String, String)]) -> String {
+    let width = fields.iter().map(|(name, _)| name.len()).max().unwrap_or(0);
+    let lines: Vec<String> =
+        fields.iter().map(|(name, value)| format!("  {name:width$} = {{{value}}}")).collect();
+    format!("@{kind}{{{key},\n{}\n}}\n", lines.join(",\n"))
+}
+
+/// What doi.org returns, given our own key and laid out one field per line.
+fn tidy_doi_bibtex(raw: &str) -> Result<Citation, String> {
+    let (kind, mut fields) = parse_bibtex(raw).ok_or("No record was found for that DOI.")?;
+    let get = |name: &str, fields: &[(String, String)]| {
+        fields.iter().find(|(n, _)| n.eq_ignore_ascii_case(name)).map(|(_, v)| v.clone()).unwrap_or_default()
+    };
+    let author = get("author", &fields);
+    let key = citation_key(author.split(" and ").next().unwrap_or(""), &get("year", &fields));
+    for (name, value) in fields.iter_mut() {
+        if name.eq_ignore_ascii_case("pages") {
+            *value = value.replace('–', "--");
+        }
+    }
+    // Publishers' landing pages and print ISSNs add noise without helping anyone find the paper.
+    fields.retain(|(name, _)| !["url", "issn", "month"].contains(&name.to_lowercase().as_str()));
+    Ok(Citation { bibtex: format_bibtex(&kind, &key, &fields), key })
+}
+
+fn xml_text(xml: &str, tag: &str) -> Vec<String> {
+    let (open, close) = (format!("<{tag}>"), format!("</{tag}>"));
+    let mut out = Vec::new();
+    let mut rest = xml;
+    while let Some(start) = rest.find(&open) {
+        let after = &rest[start + open.len()..];
+        let Some(end) = after.find(&close) else { break };
+        let text = after[..end]
+            .replace("&amp;", "&")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&quot;", "\"")
+            .replace("&apos;", "'");
+        out.push(text.split_whitespace().collect::<Vec<_>>().join(" "));
+        rest = &after[end..];
+    }
+    out
+}
+
+/// A BibTeX entry built from arXiv's Atom response.
+fn arxiv_bibtex(xml: &str, id: &str) -> Result<Citation, String> {
+    let missing = || "arXiv has no paper with that ID.".to_string();
+    let entry = &xml[xml.find("<entry>").ok_or_else(missing)?..];
+    let title = xml_text(entry, "title").into_iter().next().filter(|t| !t.is_empty() && t != "Error").ok_or_else(missing)?;
+    let authors = xml_text(entry, "name");
+    let year: String = xml_text(entry, "published").into_iter().next().unwrap_or_default().chars().take(4).collect();
+    let class = entry
+        .split("primary_category")
+        .nth(1)
+        .and_then(|rest| rest.split("term=\"").nth(1))
+        .and_then(|rest| rest.split('"').next())
+        .unwrap_or("");
+    let bare = id.split('v').next().unwrap_or(id); // cite the paper, not one revision of it
+    let key = citation_key(authors.first().map(String::as_str).unwrap_or(""), &year);
+    let mut fields = vec![
+        ("author".to_string(), authors.join(" and ")),
+        ("title".to_string(), title),
+        ("year".to_string(), year),
+        ("eprint".to_string(), bare.to_string()),
+        ("archivePrefix".to_string(), "arXiv".to_string()),
+    ];
+    if !class.is_empty() {
+        fields.push(("primaryClass".to_string(), class.to_string()));
+    }
+    Ok(Citation { bibtex: format_bibtex("misc", &key, &fields), key })
+}
+
+enum PaperId {
+    Doi(String),
+    Arxiv(String),
+}
+
+/// Recognises a DOI or an arXiv ID however it was pasted: bare, as a URL, or with a prefix.
+fn classify_paper_id(input: &str) -> Option<PaperId> {
+    let mut id = input.trim();
+    for prefix in ["https://", "http://", "dx.doi.org/", "doi.org/", "www.", "arxiv.org/abs/", "arxiv.org/pdf/", "doi:", "DOI:", "arXiv:", "arxiv:"] {
+        id = id.strip_prefix(prefix).unwrap_or(id);
+    }
+    let id = id.trim().trim_end_matches(".pdf");
+    let digits = |s: &str| !s.is_empty() && s.chars().all(|c| c.is_ascii_digit());
+    let unversioned = id.rsplit_once('v').filter(|(_, v)| digits(v)).map(|(base, _)| base).unwrap_or(id);
+    // new style 1412.6980, old style hep-th/9901001
+    let new_style = unversioned.split_once('.').is_some_and(|(a, b)| a.len() == 4 && digits(a) && (4..=5).contains(&b.len()) && digits(b));
+    let old_style = unversioned.split_once('/').is_some_and(|(a, b)| !a.starts_with("10.") && a.chars().all(|c| c.is_ascii_alphabetic() || c == '-' || c == '.') && b.len() == 7 && digits(b));
+    if new_style || old_style {
+        return Some(PaperId::Arxiv(id.to_string()));
+    }
+    (id.starts_with("10.") && id.contains('/')).then(|| PaperId::Doi(id.to_string()))
+}
+
+/// Looks a paper up online and returns a BibTeX entry for it. Needs an internet connection.
+#[tauri::command]
+async fn fetch_bibtex(id: String) -> Result<Citation, String> {
+    tauri::async_runtime::spawn_blocking(move || match classify_paper_id(&id) {
+        Some(PaperId::Doi(doi)) => tidy_doi_bibtex(&http_get(&format!("https://doi.org/{doi}"), Some("application/x-bibtex"))?),
+        Some(PaperId::Arxiv(arxiv)) => {
+            arxiv_bibtex(&http_get(&format!("https://export.arxiv.org/api/query?id_list={arxiv}"), None)?, &arxiv)
+        }
+        None => Err("That doesn't look like a DOI (10.1234/…) or an arXiv ID (1412.6980).".into()),
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 // ---------- spell check: the operating system's checker ----------
@@ -1611,11 +1928,11 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("scribe-values-{}", std::process::id()));
         std::fs::create_dir_all(dir.join("notebooks")).unwrap();
         let root = dir.to_string_lossy().to_string();
-        let nb = "# %%\nacc = 0.9423\nnbval(\"accuracy\", f\"{acc:.1%}\")\nnbval('n_samples', 1200)\n\n# %%\nnbtable(\"results\", [[\"a_b\", 1], [\"c\", 2]], header=[\"Name\", \"N\"])\n";
+        let nb = "# %%\nSEED = 7\nacc = 0.9423\nnbval(\"accuracy\", f\"{acc:.1%}\")\nnbval('n_samples', 1200)\nnbval(\"mass\", 3.2141e-5, unit=\"kg\", err=0.042e-5)\nnbval(\"g\", 9.8123, err=0.0162, unit=\"m/s^2\")\nnbval(\"big\", 12345.6, err=120)\nnbval(\"pi\", 3.14159265, sig=3)\nnbmath(\"law\", r\"E = mc^2\")\n\n# %%\nnbtable(\"results\", [[\"a_b\", 1, (0.957, 0.0042)], [\"c\", 2, (0.9, 0.013)]], header=[\"Name\", \"N\", \"Acc\"])\n";
         write_file(root.clone(), "notebooks/stats.py".into(), nb.into()).unwrap();
 
         let info = parse_notebook(root.clone(), "notebooks/stats.py".into()).unwrap();
-        assert_eq!(info.value_names, ["accuracy", "n_samples", "results"]);
+        assert_eq!(info.value_names, ["accuracy", "n_samples", "mass", "g", "big", "pi", "law", "results"]);
         assert!(info.stale.contains(&"values".to_string()));
 
         let Ok(res) = run_notebook_blocking(&root, "notebooks/stats.py") else { return }; // no python here
@@ -1626,7 +1943,21 @@ mod tests {
         let tex = std::fs::read_to_string(dir.join("scribe-values.tex")).unwrap();
         assert!(tex.contains(r"\long\expandafter\def\csname nbval@accuracy\endcsname{94.2\%}"), "{tex}");
         assert!(tex.contains(r"nbval@n_samples\endcsname{1200}"));
-        assert!(tex.contains(r"a\_b & 1 \\"), "{tex}");
+        // measurements: uncertainty to one figure (two if it starts with 1), value to match
+        assert!(tex.contains(r"nbval@mass\endcsname{\qty{3.21 +- 0.04 e-5}{kg}}"), "{tex}");
+        assert!(tex.contains(r"nbval@g\endcsname{\qty{9.812 +- 0.016}{m/s^2}}"), "{tex}");
+        assert!(tex.contains(r"nbval@big\endcsname{\num{12350 +- 120}}"), "{tex}");
+        assert!(tex.contains(r"nbval@pi\endcsname{\num{3.14}}"), "{tex}");
+        assert!(tex.contains(r"nbval@law\endcsname{E = mc^2}"), "{tex}");
+        assert!(tex.contains(r"\RequirePackage{siunitx}"), "{tex}");
+        // tables: numbers right-aligned, (value, uncertainty) cells written out
+        assert!(tex.contains(r"\begin{tabular}{lrr}"), "{tex}");
+        assert!(tex.contains(r"a\_b & 1 & $0.957 \pm 0.004$ \\"), "{tex}");
+        assert!(tex.contains(r"c & 2 & $0.900 \pm 0.013$ \\"), "{tex}");
+        // the run is recorded for \nbenv
+        assert!(tex.contains("nbval@scribe-env") && tex.contains("Random seed & 7"), "{tex}");
+        let runs = std::fs::read_to_string(dir.join(".scribe/runs.json")).unwrap();
+        assert!(runs.contains("\"python\"") && runs.contains("\"seed\": \"7\""), "{runs}");
         let fresh = parse_notebook(root.clone(), "notebooks/stats.py".into()).unwrap();
         assert!(fresh.stale.is_empty(), "{:?}", fresh.stale);
 
@@ -1634,7 +1965,7 @@ mod tests {
         std::fs::write(dir.join("papyrus-figures.sty"), "% Auto-generated by Papyrus. Do not edit.\n").unwrap();
         generate_style(root.clone()).unwrap();
         let sty = std::fs::read_to_string(dir.join("papyrus-figures.sty")).unwrap();
-        assert!(sty.contains(r"\ProvidesPackage{papyrus-figures}") && sty.contains(r"\newcommand{\nbval}"));
+        assert!(sty.contains(r"\ProvidesPackage{papyrus-figures}") && sty.contains(r"\newcommand{\nbenv}"));
         assert!(!dir.join("scribe-figures.sty").exists());
 
         std::fs::remove_dir_all(&dir).unwrap();

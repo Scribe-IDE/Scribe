@@ -19,6 +19,7 @@ import { autocompletion, closeBrackets, closeBracketsKeymap, Completion, Complet
 import { tags as t } from "@lezer/highlight";
 import { compile, saveFile } from "./build";
 import { $, current, setDirty } from "./core";
+import { mathPreview } from "./mathpreview";
 import { outlineChanged } from "./outline";
 import { spellExtension } from "./spell";
 import { reportCursor } from "./statusbar";
@@ -97,7 +98,7 @@ function argumentOptions(command: string, doc: string): Completion[] | null {
   }
   if (CITE_COMMAND.test(command)) return index.bib.map((b) => ({ label: b.key, detail: b.title, type: "text" }));
   if (command === "nbfig") return index.figures.map((f) => ({ label: f.id, detail: f.notebook, type: "variable" }));
-  if (command === "nbval" || command === "nbtable") {
+  if (command === "nbval" || command === "nbtable" || command === "nbmath") {
     return index.values.map((v) => ({
       label: v.name,
       detail: displayValue(v.value),
@@ -252,6 +253,7 @@ export function editorTheme(dark: boolean): Extension {
     "&:not(.cm-focused) .cm-fat-cursor": { background: "none !important", outline: "1px solid var(--accent)", color: "inherit !important" },
     ".cm-vim-panel": { padding: "2px 12px", fontFamily: "var(--font-mono)", fontSize: "12px", minHeight: "1.6em" },
     ".cm-vim-panel input": { fontFamily: "var(--font-mono)", fontSize: "12px", color: "var(--fg)" },
+    ".cm-math-preview": { padding: "8px 14px", maxWidth: "min(560px, 60vw)", overflowX: "auto", fontSize: "14px" },
     ".cm-misspelled": {
       textDecoration: "underline wavy var(--err)",
       textDecorationSkipInk: "none",
@@ -318,6 +320,7 @@ export function createEditorState(doc: string, path: string, hooks: EditorHooks 
       languageFor(path),
       completionFor(path),
       spellExtension(path),
+      mathPreview(path),
       EditorView.editorAttributes.of({ "data-path": path }), // lets helpers know what kind of file this is
       themeConf.of(editorTheme(editorPrefs.dark)),
       EditorView.lineWrapping,

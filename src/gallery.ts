@@ -7,7 +7,7 @@ import { ICONS } from "./icons";
 import { insertFigureIntoPaper } from "./notebook";
 import { openFile } from "./project";
 import { refreshFiles } from "./sidebar";
-import { displayValue, FigureEntry, refreshIndex, ValueEntry } from "./texindex";
+import { displayValue, FigureEntry, refreshIndex, RunInfo, ValueEntry } from "./texindex";
 import { RunResult } from "./types";
 
 let job = 0;
@@ -75,7 +75,7 @@ async function rerun(notebook: string, button: HTMLButtonElement) {
   await renderGallery();
 }
 
-function figureCard(fig: FigureEntry, mine: number): HTMLElement {
+function figureCard(fig: FigureEntry, mine: number, lastRun?: RunInfo): HTMLElement {
   const card = document.createElement("div");
   card.className = "gallery-card";
 
@@ -104,6 +104,15 @@ function figureCard(fig: FigureEntry, mine: number): HTMLElement {
   source.title = `Open ${fig.notebook}`;
   source.onclick = () => openFile(fig.notebook);
   actions.appendChild(source);
+  // When and from which commit this figure was last produced.
+  if (lastRun) {
+    source.title = `Open ${fig.notebook}. Last run ${lastRun.date}${lastRun.commit ? `, commit ${lastRun.commit}` : ""}, Python ${lastRun.python}`;
+    const when = document.createElement("span");
+    when.className = "gallery-run";
+    when.textContent = lastRun.date.slice(5);
+    when.title = source.title;
+    actions.appendChild(when);
+  }
 
   if (!fig.used) {
     const insert = document.createElement("button");
@@ -159,7 +168,7 @@ export async function renderGallery() {
   }
   if (index.figures.length) {
     frag.appendChild(heading("Figures"));
-    for (const fig of index.figures) frag.appendChild(figureCard(fig, mine));
+    for (const fig of index.figures) frag.appendChild(figureCard(fig, mine, index.runs[fig.notebook]));
   }
   if (index.values.length) {
     frag.appendChild(heading("Values"));
