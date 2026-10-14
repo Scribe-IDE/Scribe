@@ -1885,22 +1885,16 @@ body.dragging-file #files * { cursor: grabbing; }
   overflow-y: auto;
 }
 
-.welcome-title {
   margin-bottom: 32px;
   font: 700 36px/1.12 var(--font-display);
   letter-spacing: -0.01em;
-  text-wrap: balance; /* with a name in it the greeting runs to two lines */
 }
 
-/* the hand waves twice when the screen appears, pivoting at the wrist */
-.wave {
   display: inline-block;
   font-size: 0.86em;
   transform-origin: 70% 75%;
-  animation: wave 1.8s ease-in-out 500ms 1;
 }
 
-@keyframes wave {
   0%, 60%, 100% { rotate: 0deg; }
   10%, 30% { rotate: 16deg; }
   20%, 40% { rotate: -10deg; }

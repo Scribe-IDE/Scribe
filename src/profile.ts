@@ -11,10 +11,6 @@ export const profile: Profile = { name: "", email: "", affiliation: "" };
 const button = $("profile-btn");
 const popover = $("profile-popover");
 const fields: (keyof Profile)[] = ["name", "email", "affiliation"];
-const listeners: (() => void)[] = [];
-
-/** Run `fn` whenever the profile changes (the greeting uses the name, for instance). */
-export const onProfileChange = (fn: () => void) => { listeners.push(fn); };
 
 /** "Georgios Kiritsis" -> "GK"; nothing set -> a neutral mark. */
 function initials(name: string): string {
@@ -31,7 +27,6 @@ function render() {
   else button.innerHTML = PERSON;
   button.title = profile.name ? `${profile.name} (profile)` : "Set up your profile";
   for (const field of fields) $<HTMLInputElement>(`profile-${field}`).value = profile[field];
-  for (const fn of listeners) fn();
 }
 
 function save() {

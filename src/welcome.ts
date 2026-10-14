@@ -201,8 +201,6 @@ export function renderRecent() {
   const recent = getRecent();
   $("recent").hidden = recent.length === 0;
   // "back" only for someone who has been here before
-  const first = profile.name.trim().split(/\s+/)[0];
-  $("welcome-greeting").textContent = `${recent.length ? "Welcome back" : "Welcome"}${first ? `, ${first}` : ""}!`;
   const list = $("recent-list");
   list.replaceChildren();
   for (const path of recent) {

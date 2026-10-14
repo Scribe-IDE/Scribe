@@ -26,7 +26,7 @@ import { deleteEntry, newFile, newFolder, quickOpen, renameEntry, showSidebar, u
 import iconUrl from "../src-tauri/icons/icon.svg?url";
 import { addCitation } from "./cite";
 import { activeEditor, closeSide, openToSide, sideOpen } from "./split";
-import { loadProfile, onProfileChange } from "./profile";
+import { loadProfile } from "./profile";
 import { renderProblemCount } from "./statusbar";
 import { closeTab, openTabs } from "./tabs";
 import { canRunFile, runFile, shellAlive, showTerminal, stopTerminal, termPanel } from "./terminal";
@@ -349,7 +349,6 @@ try {
 } catch { /* not running inside Tauri */ }
 
 renderProblemCount();
-onProfileChange(renderRecent); // the greeting uses the name
 loadProfile();
 renderRecent();
 renderShortcuts();
