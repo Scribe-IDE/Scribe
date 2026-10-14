@@ -381,6 +381,22 @@ fn value_names(cells: &[NotebookCell]) -> Vec<String> {
     names
 }
 
+/// A cell's text as the editor should show it. Text cells are stored as comment lines; the
+/// leading "# " comes off here and is put back when the notebook is saved, so it must come off
+/// exactly once or every save would add another.
+fn cell_source(kind: &str, lines: &[&str]) -> String {
+    if kind != "markdown" {
+        return lines.join("\n").trim().to_string();
+    }
+    lines
+        .iter()
+        .map(|line| line.strip_prefix("# ").or_else(|| line.strip_prefix('#')).unwrap_or(line))
+        .collect::<Vec<_>>()
+        .join("\n")
+        .trim()
+        .to_string()
+}
+
 fn parse_cells(source: &str) -> Vec<NotebookCell> {
     let mut cells = Vec::new();
     let mut current_type = String::from("code");
@@ -391,7 +407,7 @@ fn parse_cells(source: &str) -> Vec<NotebookCell> {
         if line.starts_with("# %%") {
             // flush previous cell
             if !current_lines.is_empty() {
-                let src = current_lines.join("\n").trim().to_string();
+                let src = cell_source(&current_type, &current_lines);
                 if !src.is_empty() {
                     cells.push(NotebookCell {
                         cell_type: current_type.clone(),
@@ -422,7 +438,7 @@ fn parse_cells(source: &str) -> Vec<NotebookCell> {
 
     // flush last cell
     if !current_lines.is_empty() {
-        let src = current_lines.join("\n").trim().to_string();
+        let src = cell_source(&current_type, &current_lines);
         if !src.is_empty() {
             cells.push(NotebookCell {
                 cell_type: current_type,
@@ -1636,6 +1652,13 @@ mod tests {
         assert_eq!(view.page, 2);
         assert!((view.y - 416.5).abs() < 0.01 && (view.x - 125.8).abs() < 0.01);
         assert!(parse_synctex_view("nothing").is_err());
+    }
+
+    #[test]
+    fn text_cells_lose_their_comment_marks_once() {
+        let cells = parse_cells("# %% [markdown]\n# # Title\n#\n# Some $x^2$ text.\n\n# %%\n# a real comment\nx = 1\n");
+        assert_eq!(cells[0].source, "# Title\n\nSome $x^2$ text."); // a Markdown heading survives
+        assert_eq!(cells[1].source, "# a real comment\nx = 1"); // code comments are left alone
     }
 
     #[test]

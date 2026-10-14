@@ -7,10 +7,12 @@ import { python, pythonLanguage } from "@codemirror/lang-python";
 import { autocompletion, closeBrackets, closeBracketsKeymap, CompletionContext } from "@codemirror/autocomplete";
 import { indentWithTab } from "@codemirror/commands";
 import { invoke } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { compile, saveFile } from "./build";
 import { $, current, dirty, ICON_CLOSE, ICON_PLAY, mainFile, root, setDirty, setStatus } from "./core";
 import { editorPrefs, editorTheme, floatingTooltips, gruvbox, numberGutter, view, vimKeys } from "./editor";
 import { openFile, save, setMainView } from "./project";
+import { renderMarkdown } from "./markdown";
 import { reportCursor } from "./statusbar";
 import { CellResult, IpynbCell, IpynbDoc, NotebookCell, NotebookInfo } from "./types";
 
@@ -286,17 +288,58 @@ export function renderNotebookCells() {
 
     let source: HTMLElement;
     if (cell.cell_type === "markdown") {
+      // Text cells show their Markdown rendered (maths included); double-click to edit.
+      const wrap = document.createElement("div");
+      wrap.className = "nb-md-wrap";
+      const shown = document.createElement("div");
+      shown.className = "nb-md";
+      shown.tabIndex = 0;
+      shown.title = "Double-click to edit";
       const text = document.createElement("textarea");
       text.className = "nb-cell-source";
       text.value = cell.source;
-      text.rows = Math.max(1, cell.source.split("\n").length);
-      text.setAttribute("aria-label", "Text");
+      text.setAttribute("aria-label", "Text (Markdown)");
+      text.placeholder = "Markdown. Maths goes between $…$ or $$…$$.";
+
+      const render = () => {
+        shown.innerHTML = renderMarkdown(cell.source);
+        shown.hidden = false;
+        text.hidden = true;
+      };
+      const edit = () => {
+        shown.hidden = true;
+        text.hidden = false;
+        text.rows = Math.max(1, text.value.split("\n").length);
+        text.focus();
+      };
       text.addEventListener("input", () => {
         cell.source = text.value;
         text.rows = Math.max(1, text.value.split("\n").length);
         setDirty(true);
       });
-      source = text;
+      text.addEventListener("blur", () => { if (cell.source.trim()) render(); });
+      text.addEventListener("keydown", (e) => {
+        if ((e.key === "Enter" && e.shiftKey) || e.key === "Escape") {
+          e.preventDefault();
+          e.stopPropagation();
+          text.blur();
+        }
+      });
+      shown.ondblclick = edit;
+      shown.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); edit(); } });
+      shown.addEventListener("click", (e) => {
+        // Links open in the browser; the app's own window never navigates away.
+        const href = (e.target as HTMLElement).closest<HTMLElement>("[data-href]")?.dataset.href;
+        if (href) openUrl(href).catch(() => {});
+      });
+
+      wrap.append(shown, text);
+      if (cell.source.trim()) render();
+      else {
+        shown.hidden = true;
+        text.rows = 1;
+      }
+      source = wrap;
     } else {
       const editor = makeCellEditor(cell, i, card);
       cellViews[i] = editor;
