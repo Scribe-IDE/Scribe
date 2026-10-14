@@ -10,6 +10,7 @@ import { createEditorState, prefEffects, view } from "./editor";
 import { isNotebook, leaveNotebook, saveNotebook, stopKernel, updateNotebookView } from "./notebook";
 import { resetPdf } from "./preview";
 import { setPaperless } from "./layout";
+import { closeReader, isPaper, openReader } from "./reader";
 import { restoreCursor, restoreSession, saveSession } from "./session";
 import { loadSettings, resetSettings, toggleSettings } from "./settings";
 import { closeSide, sideFile } from "./split";
@@ -118,6 +119,7 @@ export async function listFiles(): Promise<string[]> {
 // The editor pane shows exactly one of: the text editor, notebook cells, a file preview, or
 // (with no file open) a hint.
 export function setMainView(which: "editor" | "notebook" | "preview" | "data" | "none") {
+  if (which !== "preview") closeReader(); // its Highlight button goes with it
   $("no-file").hidden = which !== "none";
   $("data-view").hidden = which !== "data";
   if (which !== "data") $("data-view").replaceChildren();
@@ -140,9 +142,15 @@ export async function showFilePreview(rel: string) {
   const box = $("file-preview");
   const job = ++previewJob;
   box.replaceChildren();
+  closeReader();
   try {
     const bytes = new Uint8Array(await invoke<ArrayBuffer>("read_binary", { root, rel }));
     const ext = rel.slice(rel.lastIndexOf(".") + 1).toLowerCase();
+    // Papers to read open in the reader, with selectable text and highlights.
+    if (isPaper(rel)) {
+      await openReader(rel, bytes, box, () => job !== previewJob);
+      return;
+    }
     const frag = document.createDocumentFragment();
     if (ext === "pdf") {
       const doc = await pdfjs.getDocument({ data: bytes }).promise;

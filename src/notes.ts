@@ -17,6 +17,7 @@ import { setPaperless } from "./layout";
 import { renderPdf } from "./preview";
 import { setProblems } from "./problems";
 import { listFiles, openFile, revealLine } from "./project";
+import { readAtPage } from "./reader";
 import { showSidebar } from "./sidebar";
 import { activeEditor } from "./split";
 import { index } from "./texindex";
@@ -493,8 +494,14 @@ async function followLink(target: HTMLElement, note: string) {
     await openCitationNote(target.dataset.key);
   } else if (target.dataset.href) {
     const href = target.dataset.href;
-    if (/^(https?:|mailto:)/i.test(href)) await openUrl(href).catch(() => {});
-    else await openFile(fromNote(note, decodeURI(href)));
+    if (/^(https?:|mailto:)/i.test(href)) {
+      await openUrl(href).catch(() => {});
+    } else {
+      const [path, hash] = href.split("#");
+      const page = /^page=(\d+)$/.exec(hash ?? "");
+      if (page) readAtPage(Number(page[1]));
+      await openFile(fromNote(note, decodeURI(path)));
+    }
   }
 }
 
@@ -736,6 +743,12 @@ export function quickNote() {
 /** Reading notes for a reference: notes/<key>.md, started from its BibTeX entry. */
 export async function openCitationNote(key: string) {
   if (!root) return;
+  await openFile(await ensureCitationNote(key));
+  afterChange();
+}
+
+/** notes/<key>.md, started from the reference's BibTeX entry if it doesn't exist yet. */
+export async function ensureCitationNote(key: string): Promise<string> {
   const rel = `${NOTES_DIR}/${key}.md`;
   const entry = index.bib.find((b) => b.key === key);
   let content = `# ${entry?.title || key}\n\n@${key}\n\n## Summary\n\n## Key ideas\n\n## Quotes and page numbers\n\n`;
@@ -753,7 +766,20 @@ export async function openCitationNote(key: string) {
     }
   }
   await ensureNote(rel, content);
-  await openFile(rel);
+  return rel;
+}
+
+/** Change a note's text through `edit`: in the editor when the note is open there (its unsaved
+ *  edits included, and undoable), otherwise on disk. */
+export async function editNote(rel: string, edit: (text: string) => string) {
+  const editor = activeEditor();
+  if (editor && editor.dom.dataset.path === rel) {
+    const text = editor.state.doc.toString();
+    editor.dispatch({ changes: { from: 0, to: text.length, insert: edit(text) }, userEvent: "input" });
+  } else {
+    const text = await invoke<string>("read_file", { root, rel }).catch(() => "");
+    await invoke("write_file", { root, rel, content: edit(text) });
+  }
   afterChange();
 }
 

@@ -1,11 +1,13 @@
 // References: the bibliography as a list, and adding an entry from a DOI or an arXiv ID.
 import { invoke } from "@tauri-apps/api/core";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { $, current, dirty, root, setStatus } from "./core";
 import { COMMAND_ICONS, ICONS } from "./icons";
 import { openCitationNote } from "./notes";
 import { pickFromZotero } from "./zotero";
 import { promptInput } from "./palette";
 import { listFiles, openFile, revealLine, save } from "./project";
+import { refreshFiles } from "./sidebar";
 import { activeEditor } from "./split";
 import { refreshIndex, scanBib } from "./texindex";
 
@@ -88,10 +90,27 @@ export function addCitation() {
   });
 }
 
+/** Copy a PDF from anywhere into papers/<key>.pdf, and open it to read. */
+async function attachPdf(key: string) {
+  const picked = await openDialog({ title: `The PDF of ${key}`, filters: [{ name: "PDF", extensions: ["pdf"] }] });
+  if (typeof picked !== "string" || !root) return;
+  const target = `papers/${key}.pdf`;
+  try {
+    const [added] = await invoke<string[]>("import_files", { root, dir: "papers", sources: [picked] });
+    if (added !== target) await invoke("rename_path", { root, from: added, to: target });
+    await refreshFiles();
+    await openFile(target);
+    renderReferences();
+  } catch (e) {
+    setStatus(`Couldn't attach the PDF: ${e}`, "err");
+  }
+}
+
 export async function renderReferences() {
   if (panel.hidden || !root) return;
   const mine = ++job;
   const index = await refreshIndex();
+  const pdfs = new Set((await listFiles()).filter((f) => /^papers\/.+\.pdf$/i.test(f)));
   if (mine !== job) return;
 
   const frag = document.createDocumentFragment();
@@ -141,7 +160,16 @@ export async function renderReferences() {
     notes.setAttribute("aria-label", `Notes on ${entry.key}`);
     notes.onclick = () => openCitationNote(entry.key);
 
-    row.append(cite, notes, open);
+    // The paper itself, to read and highlight: papers/<key>.pdf
+    const pdf = `papers/${entry.key}.pdf`;
+    const read = document.createElement("button");
+    read.className = "icon-btn" + (pdfs.has(pdf) ? " has-pdf" : "");
+    read.innerHTML = ICONS.read;
+    read.title = pdfs.has(pdf) ? `Read and highlight ${pdf}` : `Attach the paper's PDF, to read and highlight it`;
+    read.setAttribute("aria-label", read.title);
+    read.onclick = () => (pdfs.has(pdf) ? openFile(pdf) : attachPdf(entry.key));
+
+    row.append(cite, read, notes, open);
     frag.appendChild(row);
   }
   panel.replaceChildren(frag);

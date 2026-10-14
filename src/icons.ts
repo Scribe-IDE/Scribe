@@ -14,6 +14,7 @@ const TRASH = '<path d="M2.75 4.5h10.5M6.25 4.5V2.75h3.5V4.5M4.25 4.5l.6 8.1a1 1
 const CLOSE = '<path d="M4 4l8 8M12 4l-8 8"/>';
 
 export const ICONS = {
+  read: icon('<path d="M8 4.25C6.75 3.25 4.75 2.75 2.25 2.75v9.5c2.5 0 4.5.5 5.75 1.5 1.25-1 3.25-1.5 5.75-1.5v-9.5c-2.5 0-4.5.5-5.75 1.5zM8 4.25v9.5"/>'),
   page: icon(PAGE),
   folder: icon(FOLDER),
   pencil: icon(PENCIL),
