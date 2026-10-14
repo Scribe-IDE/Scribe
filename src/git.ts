@@ -24,7 +24,7 @@ function el<K extends keyof HTMLElementTagNameMap>(tag: K, className = "", text 
 }
 
 /** A unified diff as coloured lines. */
-function diffView(diff: string): HTMLElement {
+export function diffView(diff: string): HTMLElement {
   const box = el("div", "diff");
   if (!diff.trim()) {
     box.appendChild(el("div", "empty", "No textual changes to show (the file may be binary or deleted)."));

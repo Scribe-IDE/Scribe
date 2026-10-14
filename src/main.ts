@@ -143,6 +143,7 @@ register(
     run: () => { notePrefs.live = !notePrefs.live; refreshNotes(view, activeEditor()); },
   },
   { id: "edit.copyLatex", group: "Edit", title: "Copy Note as LaTeX", enabled: () => isNote(activeEditor()?.dom.dataset.path), run: copyAsLatex },
+  { id: "view.history", group: "View", title: "Show History", enabled: hasProject, run: () => showSidebar("history") },
   { id: "view.review", group: "View", title: "Show Review", enabled: hasProject, run: () => showSidebar("review") },
   { id: "file.upload", group: "File", title: "Upload Files…", enabled: hasProject, run: () => uploadFiles() },
   { id: "view.git", group: "View", title: "Show Git", enabled: hasProject, run: () => showSidebar("git") },
@@ -283,7 +284,7 @@ createMenubar($("menubar"), [
     icon: MENU_ICON.view,
     entries: [
       "view.palette", "view.quickOpen", "-",
-      "view.files", "edit.findInProject", "view.figures", "view.outline", "view.git", "view.references", "view.symbols", "view.notes", "view.review", "-",
+      "view.files", "edit.findInProject", "view.figures", "view.outline", "view.git", "view.references", "view.symbols", "view.notes", "view.history", "view.review", "-",
       "view.openSide", "view.closeSide", "-",
       "view.sidebar", "view.preview", "view.log", "view.terminal", "-",
       { title: "Theme", icon: ICONS.theme, submenu: () => ["view.themeDark", "view.themeLight"] }, "-",
@@ -314,6 +315,7 @@ $("tab-references").onclick = () => showSidebar("references");
 $("tab-symbols").onclick = () => showSidebar("symbols");
 $("side-add-cite").onclick = addCitation;
 $("tab-notes").onclick = () => showSidebar("notes");
+$("tab-history").onclick = () => showSidebar("history");
 $("tab-review").onclick = () => showSidebar("review");
 $("side-upload").onclick = () => uploadFiles();
 $("tab-git").onclick = () => showSidebar("git");

@@ -175,10 +175,168 @@ fn write_file(root: String, rel: String, content: String) -> Result<(), String> 
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
+    // Before the first saved version of a file, keep what was there, so it can be gone back to.
+    let keep = HISTORY_FILES.is_match(&rel) && !rel.starts_with('.');
+    if keep && path.is_file() {
+        if let Ok(root_dir) = Path::new(&root).canonicalize() {
+            if history_ids(&root_dir, &rel).is_empty() {
+                if let Ok(old) = std::fs::read_to_string(&path) {
+                    let when = file_mtime(&path).and_then(|t| t.duration_since(SystemTime::UNIX_EPOCH).ok()).map(|d| d.as_secs());
+                    let _ = save_version(&root_dir, &rel, &old, when.unwrap_or(0), false);
+                }
+            }
+        }
+    }
     // Write-then-rename so a crash mid-save never truncates the user's file.
     let tmp = path.with_extension("scribe-tmp");
-    std::fs::write(&tmp, content).map_err(|e| e.to_string())?;
-    std::fs::rename(&tmp, &path).map_err(|e| e.to_string())
+    std::fs::write(&tmp, &content).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, &path).map_err(|e| e.to_string())?;
+    if keep {
+        if let Ok(root_dir) = Path::new(&root).canonicalize() {
+            let _ = save_version(&root_dir, &rel, &content, now_secs(), true);
+        }
+    }
+    Ok(())
+}
+
+// ---------- history: earlier versions of each file, kept on save ----------
+// Like Overleaf's history, for people who don't use git: every save keeps a version in
+// .scribe/history/<file>/<unix seconds>.txt. Saves within ten minutes of the last version
+// replace it, so a working session becomes one version rather than hundreds.
+
+struct Pattern(&'static [&'static str]);
+impl Pattern {
+    fn is_match(&self, rel: &str) -> bool {
+        self.0.iter().any(|ext| rel.to_lowercase().ends_with(ext))
+    }
+}
+const HISTORY_FILES: Pattern = Pattern(&[".tex", ".bib", ".md", ".py", ".sty", ".cls", ".txt", ".ipynb"]);
+const HISTORY_DIR: &str = ".scribe/history";
+const HISTORY_GROUP_SECS: u64 = 600;
+const HISTORY_KEEP: usize = 200;
+
+fn now_secs() -> u64 {
+    SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+}
+
+fn history_dir(root_dir: &Path, rel: &str) -> PathBuf {
+    root_dir.join(HISTORY_DIR).join(rel)
+}
+
+/// Version ids (their times), oldest first.
+fn history_ids(root_dir: &Path, rel: &str) -> Vec<u64> {
+    let mut ids: Vec<u64> = std::fs::read_dir(history_dir(root_dir, rel))
+        .map(|dir| {
+            dir.filter_map(Result::ok)
+                .filter_map(|e| e.file_name().to_string_lossy().strip_suffix(".txt").and_then(|s| s.parse().ok()))
+                .collect()
+        })
+        .unwrap_or_default();
+    ids.sort_unstable();
+    ids
+}
+
+fn save_version(root_dir: &Path, rel: &str, content: &str, when: u64, group: bool) -> Result<(), String> {
+    let dir = history_dir(root_dir, rel);
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    // Versions are Scribe's own copies: keep them out of git (and out of "commit all").
+    let ignore = root_dir.join(HISTORY_DIR).join(".gitignore");
+    if !ignore.exists() {
+        let _ = std::fs::write(&ignore, "*\n");
+    }
+    let ids = history_ids(root_dir, rel);
+    let mut when = when;
+    if let Some(&last) = ids.last() {
+        let last_path = dir.join(format!("{last}.txt"));
+        if std::fs::read_to_string(&last_path).is_ok_and(|text| text == content) {
+            return Ok(());
+        }
+        // Still the same sitting: the newest version moves forward instead of a new one starting.
+        // The first version (what the file was before Scribe saved it) is never replaced.
+        if group && ids.len() > 1 && when.saturating_sub(last) < HISTORY_GROUP_SECS {
+            let _ = std::fs::remove_file(&last_path);
+            when = when.max(last);
+        } else {
+            when = when.max(last + 1); // ids are times and must stay unique
+        }
+    }
+    std::fs::write(dir.join(format!("{when}.txt")), content).map_err(|e| e.to_string())?;
+    let ids = history_ids(root_dir, rel);
+    if ids.len() > HISTORY_KEEP {
+        for old in &ids[..ids.len() - HISTORY_KEEP] {
+            let _ = std::fs::remove_file(dir.join(format!("{old}.txt")));
+        }
+    }
+    Ok(())
+}
+
+#[derive(Serialize)]
+struct Version {
+    id: u64,
+    /// Lines this version added and removed compared with the one before it.
+    added: usize,
+    removed: usize,
+}
+
+fn line_changes(old: &str, new: &str) -> (usize, usize) {
+    let diff = similar::TextDiff::from_lines(old, new);
+    let mut added = 0;
+    let mut removed = 0;
+    for change in diff.iter_all_changes() {
+        match change.tag() {
+            similar::ChangeTag::Insert => added += 1,
+            similar::ChangeTag::Delete => removed += 1,
+            similar::ChangeTag::Equal => {}
+        }
+    }
+    (added, removed)
+}
+
+/// Saved versions of a file, newest first.
+#[tauri::command]
+async fn history_list(root: String, rel: String) -> Result<Vec<Version>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        resolve(&root, &rel)?;
+        let root_dir = Path::new(&root).canonicalize().map_err(|e| e.to_string())?;
+        let dir = history_dir(&root_dir, &rel);
+        let ids = history_ids(&root_dir, &rel);
+        let texts: Vec<String> = ids.iter().map(|id| std::fs::read_to_string(dir.join(format!("{id}.txt"))).unwrap_or_default()).collect();
+        let mut out: Vec<Version> = ids
+            .iter()
+            .enumerate()
+            .map(|(i, &id)| {
+                // what this version changed relative to the one before it
+                let (added, removed) = if i == 0 { (texts[0].lines().count(), 0) } else { line_changes(&texts[i - 1], &texts[i]) };
+                Version { id, added, removed }
+            })
+            .collect();
+        out.reverse();
+        Ok(out)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn history_read(root: String, rel: String, id: u64) -> Result<String, String> {
+    resolve(&root, &rel)?;
+    let root_dir = Path::new(&root).canonicalize().map_err(|e| e.to_string())?;
+    std::fs::read_to_string(history_dir(&root_dir, &rel).join(format!("{id}.txt"))).map_err(|_| "That version is gone.".into())
+}
+
+/// What changed from the version to the file as it is now, as a unified diff.
+#[tauri::command]
+fn history_diff(root: String, rel: String, id: u64, current: String) -> Result<String, String> {
+    let old = history_read(root, rel.clone(), id)?;
+    Ok(unified_diff(&old, &current, &rel))
+}
+
+fn unified_diff(old: &str, new: &str, rel: &str) -> String {
+    similar::TextDiff::from_lines(old, new)
+        .unified_diff()
+        .context_radius(3)
+        .header(&format!("a/{rel}"), &format!("b/{rel}"))
+        .to_string()
 }
 
 /// Undo encodeURIComponent: header values must be ASCII, paths need not be.
@@ -2061,7 +2219,7 @@ pub fn run() {
             git_status, git_branch, git_overview, git_diff, git_commit, git_push, git_init, git_identity, search_project, read_settings, write_settings,
             kernel_start, kernel_run_cell, kernel_stop,
             spell_available, spell_check, spell_suggest, spell_learn, fetch_bibtex, export_bundle, write_binary,
-            python_bin, check_tools, pty_start, pty_write, pty_resize, pty_kill,
+            history_list, history_read, history_diff,             python_bin, check_tools, pty_start, pty_write, pty_resize, pty_kill,
             synctex_edit, synctex_view
         ])
         .run(tauri::generate_context!())
@@ -2368,6 +2526,29 @@ mod tests {
         assert_eq!(view.page, 2);
         assert!((view.y - 416.5).abs() < 0.01 && (view.x - 125.8).abs() < 0.01);
         assert!(parse_synctex_view("nothing").is_err());
+    }
+
+    #[test]
+    fn saves_keep_versions_grouped_by_sitting() {
+        let base = std::env::temp_dir().join(format!("scribe-history-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(&base).unwrap();
+        let root = base.to_string_lossy().to_string();
+        std::fs::write(base.join("paper.tex"), "first draft\n").unwrap();
+        write_file(root.clone(), "paper.tex".into(), "second\n".into()).unwrap();
+        write_file(root.clone(), "paper.tex".into(), "third\n".into()).unwrap();
+        let root_dir = base.canonicalize().unwrap();
+        let ids = history_ids(&root_dir, "paper.tex");
+        // the file as it was before Scribe saved it, then one version for this sitting
+        assert_eq!(ids.len(), 2, "{ids:?}");
+        assert_eq!(history_read(root.clone(), "paper.tex".into(), ids[0]).unwrap(), "first draft\n");
+        assert_eq!(history_read(root.clone(), "paper.tex".into(), ids[1]).unwrap(), "third\n");
+        let diff = history_diff(root.clone(), "paper.tex".into(), ids[0], "third\n".into()).unwrap();
+        assert!(diff.contains("-first draft") && diff.contains("+third"), "{diff}");
+        // other files and generated data keep no history
+        write_file(root.clone(), "data.csv".into(), "1,2\n".into()).unwrap();
+        assert!(history_ids(&root_dir, "data.csv").is_empty());
+        let _ = std::fs::remove_dir_all(&base);
     }
 
     #[test]

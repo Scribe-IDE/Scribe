@@ -758,6 +758,21 @@ body.resizing #layout > :not(.splitter) { pointer-events: none; }
 .notes-help dt { font: 11.5px var(--font-mono); color: var(--fg); white-space: nowrap; }
 .notes-help dd { margin: 0; }
 
+/* history panel */
+#history-panel { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 8px 12px; }
+.history-intro { padding: 2px 8px 6px; font-size: 12px; line-height: 1.5; color: var(--muted); }
+.history-day { margin-top: 8px; padding: 0 8px 2px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.history-row { display: flex; align-items: center; gap: 4px; border-radius: var(--r); }
+.history-row:hover { background: var(--hover); }
+.history-pick { display: flex; flex: 1; align-items: baseline; gap: 10px; min-height: var(--row-h); padding: 3px 8px; text-align: left; color: var(--fg-dim); }
+.history-row:hover .history-pick { color: var(--fg); }
+.history-time { font-variant-numeric: tabular-nums; }
+.history-delta { display: flex; gap: 6px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.history-delta .add { color: var(--ok); }
+.history-delta .del { color: var(--err); }
+.history-restore { height: 22px; margin-right: 4px; padding: 0 8px; font-size: 12px; opacity: 0; }
+.history-row:hover .history-restore, .history-restore:focus-visible { opacity: 1; }
+
 /* a note: prose type in a readable column, with headings, maths and images shown in place */
 .cm-editor.cm-notes .cm-scroller { font-family: var(--font); line-height: 1.7; }
 .cm-editor.cm-notes .cm-content { max-width: 46em; margin: 0 auto; padding: 12px 24px 40vh; }

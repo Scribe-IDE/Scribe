@@ -11,6 +11,7 @@ import { renderGallery } from "./gallery";
 import { renderGit } from "./git";
 import { sizes, togglePane } from "./layout";
 import { emptyIpynb } from "./notebook";
+import { renderHistory } from "./history";
 import { renderNotes } from "./notes";
 import { renderOutline } from "./outline";
 import { renderReview } from "./review";
@@ -429,16 +430,16 @@ export async function refreshFiles() {
 }
 
 // ---------- sidebar tabs ----------
-export type SidebarTab = "files" | "search" | "figures" | "git" | "references" | "symbols" | "notes" | "review";
+export type SidebarTab = "files" | "search" | "figures" | "git" | "references" | "symbols" | "notes" | "history" | "review";
 
 const PANEL: Record<SidebarTab, string> = {
   files: "files-panel", search: "search-panel", figures: "figures-panel", git: "git-panel",
-  references: "references-panel", symbols: "symbols-panel", notes: "notes-panel", review: "review-panel",
+  references: "references-panel", symbols: "symbols-panel", notes: "notes-panel", history: "history-panel", review: "review-panel",
 };
 
 const PANEL_NAME: Record<SidebarTab, string> = {
   files: "File tree", search: "Search", figures: "Figures and values", git: "Git", references: "References",
-  symbols: "Symbols", notes: "Notes", review: "Review",
+  symbols: "Symbols", notes: "Notes", history: "History", review: "Review",
 };
 
 /** The panel showing in the sidebar. */
@@ -462,6 +463,7 @@ export function showSidebar(which: SidebarTab) {
   if (which === "files") renderOutline();
   if (which === "review") renderReview();
   if (which === "notes") renderNotes();
+  if (which === "history") renderHistory();
   if (which === "references") renderReferences();
   if (which === "symbols") renderSymbols();
   if (which === "git") renderGit();
