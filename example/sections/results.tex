@@ -1,0 +1,40 @@
+\section{Results}
+\label{sec:results}
+
+Figure~\ref{fig:curves} shows the training loss of the three runs and
+Table~\ref{tab:results} summarises them. The update rules of
+Equations~\ref{eq:sgd}--\ref{eq:adam} differ most in how fast they make progress:
+\nbval{fastest} crosses a training loss of $0.1$ after \nbval{fastest-epochs} epochs, and an
+optimiser with ``--'' in the last column of the table never got there in some run.
+
+\begin{figure}[ht]
+  \centering
+  \nbfig{fig-curves}
+  \caption{Training loss per epoch on a logarithmic scale: mean over \nbval{n-seeds} seeds,
+    with a band of one standard deviation. The dotted line marks $0.1$.}
+  \label{fig:curves}
+\end{figure}
+
+\begin{table}[ht]
+  \centering
+  \nbtable{results}
+  \caption{Final training loss, test accuracy, and the first epoch at which the training
+    loss fell below $0.1$, as mean $\pm$ standard deviation over \nbval{n-seeds} seeds
+    (``--'' if some run never got there).}
+  \label{tab:results}
+\end{table}
+
+Test accuracy follows from that. The mean accuracies of the three optimisers span
+\nbval{acc-spread} points, with \nbval{best} ahead at \nbval{best-acc}. Where the standard
+deviations overlap the ranking should not be read as significant, and an optimiser that has
+not finished converging is being compared on speed as much as on the quality of its solution.
+Figure~\ref{fig:boundary} shows the decision boundary one of those runs learned.
+% TODO: sweep the learning rate for each optimiser instead of fixing it by hand.
+% TODO: add a second dataset; two moons alone says little about harder problems.
+
+\begin{figure}[ht]
+  \centering
+  \nbfig{fig-boundary}
+  \caption{Decision boundary of one \nbval{best} run, with the test points.}
+  \label{fig:boundary}
+\end{figure}

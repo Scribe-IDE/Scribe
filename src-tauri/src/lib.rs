@@ -1774,6 +1774,9 @@ pub fn run() {
 mod tests {
     use super::*;
 
+    /// Tests that run the example's notebook or compile it share one folder; take turns.
+    static EXAMPLE: Mutex<()> = Mutex::new(());
+
     fn example() -> String {
         concat!(env!("CARGO_MANIFEST_DIR"), "/../example").to_string()
     }
@@ -1813,8 +1816,9 @@ mod tests {
         let files = list_files(example()).unwrap();
         assert!(files.contains(&"main.tex".to_string()));
 
-        // Run notebook first to generate figures/fig-loss.pdf
-        let run_res = run_notebook_blocking(&example(), "notebooks/analysis.py").unwrap();
+        let _turn = EXAMPLE.lock().unwrap_or_else(|e| e.into_inner());
+        // Run notebook first to generate the figures, the results table and the values
+        let run_res = run_notebook_blocking(&example(), "notebooks/experiment.py").unwrap();
         assert!(run_res.ok, "notebook failed:\n{}", run_res.log);
 
         // The app refreshes the generated package before every compile; do the same here.
@@ -1826,17 +1830,21 @@ mod tests {
 
     #[test]
     fn parses_notebook_cells() {
-        let info = parse_notebook(example(), "notebooks/analysis.py".into()).unwrap();
-        assert!(info.figure_ids.contains(&"fig-loss".to_string()));
-        assert!(info.cells.len() >= 3); // markdown + code + figure
+        let info = parse_notebook(example(), "notebooks/experiment.py".into()).unwrap();
+        assert!(info.figure_ids.contains(&"fig-curves".to_string()));
+        assert!(info.cells.len() >= 5); // text, three code cells, two figures
+        assert!(info.figure_ids.contains(&"fig-boundary".to_string()));
+        assert!(info.value_names.contains(&"best-acc".to_string()) && info.value_names.contains(&"results".to_string()));
         let fig_cell = info.cells.iter().find(|c| c.figure_id.is_some()).unwrap();
         assert_eq!(fig_cell.cell_type, "figure");
-        assert_eq!(fig_cell.figure_id.as_deref(), Some("fig-loss"));
+        assert_eq!(fig_cell.figure_id.as_deref(), Some("fig-curves"));
     }
 
     #[test]
     fn synctex_round_trip_on_example() {
-        // Needs the compiled example; `lists_and_compiles_example` produces it.
+        let _turn = EXAMPLE.lock().unwrap_or_else(|e| e.into_inner());
+        // Needs the compiled example; build it if the other test hasn't yet.
+        let _ = run_notebook_blocking(&example(), "notebooks/experiment.py");
         generate_style(example()).unwrap();
         let _ = compile_blocking(&example(), "main.tex").unwrap();
         let Ok(spot) = synctex_view(example(), "build/main.pdf".into(), "main.tex".into(), 20) else {
@@ -1846,7 +1854,7 @@ mod tests {
         assert!(spot.width > 0.0 && spot.y > 0.0);
         let back = synctex_edit(example(), "build/main.pdf".into(), 1, spot.x + 5.0, spot.y + 2.0).unwrap();
         assert_eq!(back.file, "main.tex");
-        assert!((18..=22).contains(&back.line), "landed on line {}", back.line);
+        assert!((13..=24).contains(&back.line), "landed on line {}", back.line); // somewhere in the abstract
         assert!(synctex_edit(example(), "../outside.pdf".into(), 1, 0.0, 0.0).is_err());
     }
 
@@ -2014,27 +2022,27 @@ mod tests {
     #[test]
     fn builds_runner_script() {
         let source = std::fs::read_to_string(
-            Path::new(&example()).join("notebooks/analysis.py")
+            Path::new(&example()).join("notebooks/experiment.py")
         ).unwrap();
         let cells = parse_cells(&source);
-        let script = build_runner_script(&cells, "notebooks/analysis.py");
-        assert!(script.contains("_scribe_write_values(\"notebooks/analysis.py\")"));
+        let script = build_runner_script(&cells, "notebooks/experiment.py");
+        assert!(script.contains("_scribe_finish(\"notebooks/experiment.py\")"));
         assert!(script.contains("matplotlib.use('pdf')"));
-        assert!(script.contains("plt.savefig('figures/fig-loss.pdf'"));
+        assert!(script.contains("plt.savefig('figures/fig-curves.pdf'"));
         assert!(script.contains("plt.close()"));
     }
 
     #[test]
     fn stale_detection() {
-        let info = parse_notebook(example(), "notebooks/analysis.py".into()).unwrap();
+        let info = parse_notebook(example(), "notebooks/experiment.py".into()).unwrap();
         // stale = figure missing OR notebook newer than figure
-        // After a test run, fig-loss.pdf may exist, so just check the field is populated correctly
-        assert!(info.figure_ids.contains(&"fig-loss".to_string()));
+        // After a test run, fig-curves.pdf may exist, so just check the field is populated correctly
+        assert!(info.figure_ids.contains(&"fig-curves".to_string()));
         // If we touch the notebook, it should become stale
-        let nb = Path::new(&example()).join("notebooks/analysis.py");
+        let nb = Path::new(&example()).join("notebooks/experiment.py");
         let _ = std::fs::OpenOptions::new().append(true).open(&nb); // updates mtime
-        let info2 = parse_notebook(example(), "notebooks/analysis.py".into()).unwrap();
-        // Either stale or figure_ids should contain fig-loss
-        assert!(info2.figure_ids.contains(&"fig-loss".to_string()));
+        let info2 = parse_notebook(example(), "notebooks/experiment.py".into()).unwrap();
+        // Either stale or figure_ids should contain fig-curves
+        assert!(info2.figure_ids.contains(&"fig-curves".to_string()));
     }
 }

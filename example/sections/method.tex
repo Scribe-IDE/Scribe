@@ -1,0 +1,38 @@
+\section{Method}
+\label{sec:method}
+
+\paragraph{Data.}
+The two-moons problem consists of two interleaving half circles with Gaussian noise added to
+every point. We draw \nbval{n-train} points for training and \nbval{n-test} for testing.
+
+\paragraph{Model.}
+The classifier is a network with one hidden layer of $h = \nbval{hidden}$ $\tanh$ units and
+a sigmoid output, $\nbmath{n-params}$ parameters in all, trained with the cross-entropy loss
+\begin{equation}
+  \mathcal{L}(\theta) = -\frac{1}{N}\sum_{i=1}^{N}
+    \Big[ y_i \log p_\theta(x_i) + (1 - y_i) \log\big(1 - p_\theta(x_i)\big) \Big].
+  \label{eq:loss}
+\end{equation}
+
+\paragraph{Optimisers.}
+For each of the \nbval{n-seeds} seeds, all three start from the same weights and see the
+same mini-batches of \nbval{batch} points for \nbval{epochs} epochs; we report the mean and
+standard deviation over seeds. Writing $g_t = \nabla_\theta \mathcal{L}(\theta_t)$ for the
+mini-batch gradient and $\eta$ for the learning rate, SGD takes the step
+\begin{equation}
+  \theta_{t+1} = \theta_t - \eta\, g_t ,
+  \label{eq:sgd}
+\end{equation}
+momentum accumulates a velocity,
+\begin{equation}
+  v_{t+1} = \mu\, v_t + g_t , \qquad \theta_{t+1} = \theta_t - \eta\, v_{t+1} ,
+  \label{eq:momentum}
+\end{equation}
+with $\mu = 0.9$, and Adam rescales each coordinate by running estimates of the first and
+second moments of the gradient,
+\begin{equation}
+  \theta_{t+1} = \theta_t - \eta\, \frac{\hat{m}_t}{\sqrt{\hat{v}_t} + \epsilon} ,
+  \label{eq:adam}
+\end{equation}
+with the default decay rates $\beta_1 = 0.9$ and $\beta_2 = 0.999$ of~\cite{kingma2015}.
+% NOTE: the learning rates were chosen by hand, one per optimiser; they are listed in the table.
