@@ -266,13 +266,23 @@
   </div>
 
   <dialog id="about" aria-labelledby="about-name">
-    <img id="about-icon" alt="" width="72" height="72" />
-    <h2 id="about-name">Scribe</h2>
-    <p class="about-version">Version 0.1.0</p>
-    <p>I wrote Scribe after finishing my thesis. While writing the papers that followed, I found that the tools available didn't suit the way I work, so I decided to build my own.</p>
-    <p class="about-promise">It is free for everyone, forever.</p>
-    <p class="about-sign">Georgios Kiritsis</p>
-    <button id="about-close" class="btn btn-outline">Close</button>
+    <div class="about-body" tabindex="-1" autofocus>
+      <header class="about-head">
+        <img id="about-icon" alt="" width="44" height="44" />
+        <div>
+          <h2 id="about-name">Scribe</h2>
+          <p class="about-version">Version 0.1.0</p>
+        </div>
+        <button id="about-close" class="icon-btn" aria-label="Close"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+      </header>
+      <p class="about-motto">Papers that run their own figures.</p>
+      <p class="about-story">I wrote Scribe after finishing my thesis. While writing the papers that followed, I found that the tools available didn't suit the way I work, so I decided to build my own.</p>
+      <p class="about-sign">Georgios Kiritsis</p>
+    </div>
+    <footer class="about-foot">
+      <span class="about-promise">Free for everyone, forever.</span>
+      <span>© 2026</span>
+    </footer>
   </dialog>
 
   <script type="module" src="/src/main.ts"></script>
