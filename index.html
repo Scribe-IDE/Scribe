@@ -268,6 +268,16 @@
     <label class="profile-field"><span>Affiliation</span><input id="profile-affiliation" type="text" autocomplete="off" placeholder="University or company" /></label>
   </div>
 
+  <dialog id="sketch" aria-label="Sketch">
+    <div id="sketch-tools" class="sketch-tools"></div>
+    <canvas id="sketch-canvas"></canvas>
+    <div class="sketch-foot">
+      <span class="sketch-hint">Draw with a mouse, trackpad or pen. ⌘Z undoes a stroke.</span>
+      <button id="sketch-cancel" class="btn">Cancel</button>
+      <button id="sketch-save" class="btn btn-primary">Insert</button>
+    </div>
+  </dialog>
+
   <dialog id="review" aria-label="Review cards">
     <header class="review-head">
       <span id="review-count"></span>

@@ -27,6 +27,7 @@ import iconUrl from "../src-tauri/icons/icon.svg?url";
 import { addCitation, addFromZotero } from "./cite";
 import { exportForAnki, reviewCards } from "./cards";
 import { checkBeforeSubmitting } from "./check";
+import { newSketch } from "./sketch";
 import { editTable } from "./tables";
 import { copyAsLatex, exportNotePdf, isNote, newNote, notePrefs, quickNote, refreshNotes, todaysNote } from "./notes";
 import { activeEditor, closeSide, openToSide, sideOpen } from "./split";
@@ -207,6 +208,7 @@ register(
 
   { id: "help.shortcuts", group: "Help", title: "Keyboard Shortcuts", run: commandPalette },
   { id: "edit.table", group: "Edit", title: "Edit Table…", enabled: () => !!activeEditor()?.dom.dataset.path?.endsWith(".tex"), run: editTable },
+  { id: "file.sketch", group: "File", title: "Insert Sketch…", keys: "Mod-Alt-d", enabled: () => isNote(activeEditor()?.dom.dataset.path), run: newSketch },
   { id: "file.review", group: "File", title: "Review Cards", enabled: hasProject, run: () => reviewCards() },
   { id: "file.anki", group: "File", title: "Export Cards for Anki…", enabled: hasProject, run: exportForAnki },
   {
@@ -291,7 +293,7 @@ const MENU_ICON = {
 };
 
 createMenubar($("menubar"), [
-  { title: "File", icon: MENU_ICON.file, entries: ["file.new", "file.newNotebook", "file.newFolder", "file.upload", "-", "file.newNote", "file.todaysNote", "file.quickNote", "file.notePdf", "file.review", "file.anki", "-", "file.newProject", "file.open", "file.import", { title: "Open Recent", icon: ICONS.recent, submenu: recentEntries }, "-", "file.save", "file.rename", "file.trash", "-", "file.export", "file.reveal", "-", "file.closeTab", "file.close"] },
+  { title: "File", icon: MENU_ICON.file, entries: ["file.new", "file.newNotebook", "file.newFolder", "file.upload", "-", "file.newNote", "file.todaysNote", "file.quickNote", "file.sketch", "file.notePdf", "file.review", "file.anki", "-", "file.newProject", "file.open", "file.import", { title: "Open Recent", icon: ICONS.recent, submenu: recentEntries }, "-", "file.save", "file.rename", "file.trash", "-", "file.export", "file.reveal", "-", "file.closeTab", "file.close"] },
   { title: "Edit", icon: MENU_ICON.edit, entries: ["edit.undo", "edit.redo", "-", "edit.cut", "edit.copy", "edit.paste", "edit.selectAll", "-", "edit.find", "edit.findInProject", "edit.comment", "-", "edit.cite", "edit.zotero", "edit.table", "edit.copyLatex"] },
   {
     title: "View",

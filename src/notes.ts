@@ -18,6 +18,7 @@ import { renderPdf } from "./preview";
 import { setProblems } from "./problems";
 import { listFiles, openFile, revealLine } from "./project";
 import { readAtPage } from "./reader";
+import { editSketch, newSketch, sketchSaved } from "./sketch";
 import { dueCount, reviewCards } from "./cards";
 import { showSidebar } from "./sidebar";
 import { activeEditor } from "./split";
@@ -155,14 +156,33 @@ class CodeHeader extends WidgetType {
   ignoreEvent() { return true; }
 }
 
+// Bumped when a sketch is drawn over, so its picture is read again.
+const imageVersion = new Map<string, number>();
+sketchSaved.push((rel) => {
+  imageUrls.delete(rel);
+  imageVersion.set(rel, (imageVersion.get(rel) ?? 0) + 1);
+  refreshNotes(activeEditor());
+});
+
 class ImageWidget extends WidgetType {
-  constructor(readonly rel: string) { super(); }
-  eq(other: ImageWidget) { return other.rel === this.rel; }
+  readonly version: number;
+  constructor(readonly rel: string, readonly note: string) {
+    super();
+    this.version = imageVersion.get(rel) ?? 0;
+  }
+  eq(other: ImageWidget) { return other.rel === this.rel && other.version === this.version; }
   toDOM() {
     const box = document.createElement("div");
     box.className = "cm-md-image";
     const img = document.createElement("img");
     img.alt = "";
+    // Sketches are ink on transparent paper: the dark theme shows them inverted, and a
+    // double-click opens one to draw more.
+    if (/(^|\/)sketch-[^/]*\.png$/i.test(this.rel)) {
+      img.className = "sketch";
+      img.title = "Double-click to draw on this sketch";
+      img.addEventListener("dblclick", () => editSketch(this.note, this.rel));
+    }
     imageUrl(this.rel).then((url) => { img.src = url; }).catch(() => { box.textContent = `Image not found: ${this.rel}`; });
     box.appendChild(img);
     return box;
@@ -205,7 +225,7 @@ function decorate(state: EditorState, path: string): DecorationSet {
   if (notePrefs.live) {
     syntaxTree(state).iterate({
       enter(node) {
-        if (!QUIET.has(node.name) || taken(node.from)) return;
+        if (!QUIET.has(node.name)) return;
         // backticks around inline code sit inside the code range; fences are handled with their block
         if (node.name === "CodeMark" ? text.startsWith("```", node.from) : taken(node.from)) return;
         if (node.name === "URL" && text[node.from - 1] !== "(") return; // only a link's address, not a bare URL
@@ -270,7 +290,7 @@ function decorate(state: EditorState, path: string): DecorationSet {
     }
     const image = /^!\[[^\]]*\]\(([^)\s]+)\)\s*$/.exec(line.text);
     if (image && notePrefs.live && !/^[a-z]+:/i.test(image[1])) {
-      out.push(Decoration.widget({ widget: new ImageWidget(fromNote(path, decodeURI(image[1]))), block: true, side: 1 }).range(line.to));
+      out.push(Decoration.widget({ widget: new ImageWidget(fromNote(path, decodeURI(image[1])), path), block: true, side: 1 }).range(line.to));
     }
   }
 
@@ -917,7 +937,7 @@ export async function renderNotes() {
     button("Today", "Open today's note (⌥⌘T)", todaysNote),
     button("Quick note", "Jot something into the inbox (⌥⌘N)", quickNote),
   );
-  if (isNote(current)) tools.append(button("PDF", "Typeset this note as a PDF", exportNotePdf));
+  if (isNote(current)) tools.append(button("Sketch", "Draw a diagram into this note (⌥⌘D)", newSketch), button("PDF", "Typeset this note as a PDF", exportNotePdf));
   // Revision: how many cards are waiting, from the Q: / A: lines in the notes shown
   const review = button("Review", "Review the cards that are due (Q: and A: lines in notes)", () => reviewCards(activeTag ? tags.get(activeTag) : undefined));
   review.hidden = true;

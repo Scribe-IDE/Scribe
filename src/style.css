@@ -2250,3 +2250,28 @@ body.dragging-file #files * { cursor: grabbing; }
 .review-grades kbd { margin: 2px 0 0; }
 
 /* ── sketching ── */
+#sketch {
+  /* the whole drawing fits on screen: 5:3 canvas plus the two bars */
+  width: min(1240px, calc(100vw - 48px), calc((100vh - 150px) * 5 / 3));
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  color: var(--fg);
+  background: var(--raised);
+  border: 1px solid var(--border-hi);
+  border-radius: 14px;
+  animation: pop-in 180ms cubic-bezier(.16, 1, .3, 1);
+}
+#sketch::backdrop { background: rgba(0, 0, 0, .55); }
+.sketch-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 10px 14px; border-bottom: 1px solid var(--border); }
+.sketch-tools .btn { height: 26px; padding: 0 9px; font-size: 12.5px; }
+.sketch-tools .btn.active { color: var(--fg); background: var(--active); }
+.sketch-gap { width: 10px; }
+.sketch-swatch { width: 20px; height: 20px; border-radius: 50%; background: var(--ink); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .25); }
+.sketch-swatch.active { outline: 2px solid var(--accent); outline-offset: 2px; }
+#sketch-canvas { display: block; width: 100%; aspect-ratio: 5 / 3; background: #fbfaf7; cursor: crosshair; touch-action: none; }
+.sketch-foot { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); }
+.sketch-hint { margin-right: auto; font-size: 12px; color: var(--faint); }
+.cm-notes .cm-md-image img.sketch { max-height: 360px; cursor: zoom-in; }
+:root:not([data-theme="light"]) .cm-notes .cm-md-image img.sketch { filter: invert(1) hue-rotate(180deg); }
+
