@@ -168,6 +168,7 @@ register(
     id: "view.terminal", group: "View", title: "Toggle Terminal", enabled: hasProject, checked: () => !termPanel.hidden,
     run: () => showTerminal(termPanel.hidden),
   },
+  { id: "build.showInSource", group: "Build", title: "Show PDF Selection in Source", enabled: hasPdfSelection, run: goToSelectionSource },
   { id: "build.showInPdf", group: "Build", title: "Show in PDF", keys: "Mod-Shift-j", enabled: canShowInPdf, run: showInPdf },
   {
     id: "build.compileOnSave", group: "Build", title: "Compile on Save", enabled: hasProject,

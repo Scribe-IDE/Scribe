@@ -1,6 +1,7 @@
 // The compiled paper: rendering, zoom, page indicator, text search, and SyncTeX jumps between
 // a spot in the PDF and its source line.
 import { invoke } from "@tauri-apps/api/core";
+import { EditorView } from "codemirror";
 import * as pdfjs from "pdfjs-dist";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -35,6 +36,8 @@ export function resetPdf() {
   zoom = 1;
   matches = [];
   bar.hidden = true;
+  gotoBtn.hidden = true;
+  box.classList.remove("rescaling");
   box.style.width = "";
   box.replaceChildren(pdfEmpty.cloneNode(true));
 }
@@ -64,6 +67,20 @@ export async function renderPdf(rel: string) {
     sheet.dataset.w = String(base.width);
     sheet.dataset.h = String(base.height);
     sheet.appendChild(canvas);
+
+    // Invisible, selectable text laid exactly over the picture of the page, so words in the
+    // PDF can be highlighted, copied, and traced back to the source.
+    const cssScale = width / base.width;
+    const layer = document.createElement("div");
+    layer.className = "textLayer";
+    sheet.style.setProperty("--scale-factor", String(cssScale));
+    sheet.appendChild(layer);
+    await new pdfjs.TextLayer({
+      textContentSource: await page.getTextContent(),
+      container: layer,
+      viewport: page.getViewport({ scale: cssScale }),
+    }).render();
+    if (job !== pdfJob) return;
     frag.appendChild(sheet);
   }
 
@@ -72,6 +89,7 @@ export async function renderPdf(rel: string) {
   pdfDoc = doc;
   box.style.width = zoom === 1 ? "" : `${zoom * 100}%`;
   box.replaceChildren(frag);
+  box.classList.remove("rescaling");
   scroller.scrollTop = at * scroller.scrollHeight;
   bar.hidden = false;
   $("pdf-zoom-label").textContent = `${Math.round(zoom * 100)}%`;
@@ -82,6 +100,8 @@ export async function renderPdf(rel: string) {
 // Re-rasterise at the new width once resizing settles; CSS scales the canvases meanwhile.
 let pdfResizeTimer: number | null = null;
 export function rerenderPdfSoon() {
+  // Until the pages are redrawn at the new size, the text layer no longer lines up with them.
+  if (lastPdf) box.classList.add("rescaling");
   if (pdfResizeTimer) clearTimeout(pdfResizeTimer);
   pdfResizeTimer = window.setTimeout(() => {
     if (lastPdf && root) renderPdf(lastPdf).catch(() => {});
@@ -123,6 +143,7 @@ scroller.addEventListener("scroll", () => {
   requestAnimationFrame(() => {
     labelQueued = false;
     updatePageLabel();
+    placeGoto();
   });
 });
 
@@ -235,6 +256,98 @@ box.addEventListener("dblclick", async (e) => {
     setStatus(String(err), "err");
   }
 });
+
+// ---------- highlighted text in the PDF -> its place in the source ----------
+const gotoBtn = $("pdf-goto");
+
+/** The current text selection, if it lies inside the preview. */
+function selectionInPdf(): Range | null {
+  const selection = window.getSelection();
+  if (!selection || selection.isCollapsed || !selection.rangeCount) return null;
+  const range = selection.getRangeAt(0);
+  return box.contains(range.commonAncestorContainer) && range.toString().trim() ? range : null;
+}
+
+export const hasPdfSelection = () => !!selectionInPdf();
+
+// The button follows the highlighted text while scrolling.
+function placeGoto() {
+  const rects = selectionInPdf()?.getClientRects();
+  const last = rects?.[rects.length - 1];
+  if (!last) {
+    gotoBtn.hidden = true;
+    return;
+  }
+  gotoBtn.hidden = false;
+  const pane = scroller.getBoundingClientRect();
+  const inView = last.bottom > pane.top && last.top < pane.bottom;
+  gotoBtn.style.visibility = inView ? "visible" : "hidden";
+  // Just under the end of the highlight, so it never covers the text being read.
+  gotoBtn.style.left = `${clamp(last.right - gotoBtn.offsetWidth / 2, pane.left + 8, pane.right - gotoBtn.offsetWidth - 12)}px`;
+  gotoBtn.style.top = `${clamp(last.bottom + 6, pane.top + 4, pane.bottom - gotoBtn.offsetHeight - 4)}px`;
+}
+
+let selectionTimer: number | null = null;
+document.addEventListener("selectionchange", () => {
+  if (selectionTimer) clearTimeout(selectionTimer);
+  selectionTimer = window.setTimeout(placeGoto, 120);
+});
+
+// PDFs join letters into single glyphs; the source has them apart.
+const unligature = (text: string) =>
+  text.replace(/ﬀ/g, "ff").replace(/ﬁ/g, "fi").replace(/ﬂ/g, "fl").replace(/ﬃ/g, "ffi").replace(/ﬄ/g, "ffl");
+
+/** Select the highlighted words in the editor, looking around the line SyncTeX pointed at. */
+function selectInSource(text: string, line: number) {
+  if ($("editor").hidden) return;
+  const doc = view.state.doc;
+  const words = unligature(text).trim().split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w));
+  if (!words.length) return;
+  const from = doc.line(Math.max(1, line - 3)).from;
+  const to = doc.line(Math.min(doc.lines, line + 8)).to;
+  const nearby = doc.sliceString(from, to);
+  const escape = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // Try the whole phrase first, then shorter openings of it: line breaks, commands and
+  // hyphenation mean a long run of PDF text rarely appears unbroken in the source.
+  for (let count = Math.min(words.length, 8); count >= 1; count--) {
+    const pattern = new RegExp(words.slice(0, count).map(escape).join("[\\s~]+"));
+    const hit = pattern.exec(nearby);
+    if (!hit) continue;
+    view.dispatch({
+      selection: { anchor: from + hit.index, head: from + hit.index + hit[0].length },
+      effects: EditorView.scrollIntoView(from + hit.index, { y: "center" }),
+    });
+    return;
+  }
+}
+
+/** Jump to the source of the text highlighted in the PDF. */
+export async function goToSelectionSource() {
+  const range = selectionInPdf();
+  const first = range?.getClientRects()[0];
+  const sheet = (range?.startContainer.parentElement ?? null)?.closest<HTMLElement>(".pdf-page");
+  if (!range || !first || !sheet || !root || !lastPdf) return;
+  const text = range.toString();
+  const rect = sheet.getBoundingClientRect();
+  const pointsPerPixel = Number(sheet.dataset.w) / rect.width;
+  try {
+    const spot = await invoke<SourceSpot>("synctex_edit", {
+      root,
+      pdf: lastPdf,
+      page: Number(sheet.dataset.page),
+      x: (first.left + 2 - rect.left) * pointsPerPixel,
+      y: (first.top + first.height / 2 - rect.top) * pointsPerPixel,
+    });
+    await revealLine(spot.file, spot.line);
+    selectInSource(text, spot.line);
+    gotoBtn.hidden = true;
+  } catch (err) {
+    setStatus(String(err), "err");
+  }
+}
+
+gotoBtn.addEventListener("mousedown", (e) => e.preventDefault()); // keep the highlight while clicking
+gotoBtn.onclick = goToSelectionSource;
 
 export const canShowInPdf = () => hasPdf() && !!current?.endsWith(".tex") && !$("editor").hidden;
 

@@ -1570,6 +1570,48 @@ body.dragging-file #files * { cursor: grabbing; }
   padding: 24px;
 }
 
+/* pdf.js text layer: transparent text positioned over each page so it can be selected */
+.textLayer {
+  position: absolute;
+  inset: 0;
+  overflow: clip;
+  line-height: 1;
+  text-align: initial;
+  -webkit-text-size-adjust: none;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  z-index: 1;
+}
+
+.textLayer :is(span, br) {
+  position: absolute;
+  color: transparent;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+}
+
+.textLayer ::selection { background: rgba(212, 165, 86, .45); color: transparent; }
+#pdf.rescaling .textLayer { display: none; }
+
+/* appears at the end of highlighted PDF text */
+#pdf-goto {
+  position: fixed;
+  z-index: 30;
+  height: 26px;
+  padding: 0 9px 0 7px;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--fg);
+  background: var(--raised);
+  border: 1px solid var(--border-hi);
+  animation: fade-in 120ms ease-out;
+}
+
+#pdf-goto:hover { background: var(--raised); border-color: var(--accent); }
+#pdf-goto svg { color: var(--accent); }
+
 .pdf-find-mark {
   position: absolute;
   background: rgba(212, 165, 86, .4);
