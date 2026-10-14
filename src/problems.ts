@@ -36,11 +36,17 @@ export function setProblems(next: Problem[], log: string, visible: boolean, titl
     const text = document.createElement("span");
     text.className = "problem-text";
     text.textContent = problem.message;
+    if (problem.hint) {
+      const hint = document.createElement("span");
+      hint.className = "problem-hint";
+      hint.textContent = problem.hint;
+      text.appendChild(hint);
+    }
     const where = document.createElement("span");
     where.className = "problem-where";
     where.textContent = problem.line ? `${problem.file}:${problem.line}` : problem.file;
     row.append(icon, text, where);
-    row.title = `${problem.message}\n${where.textContent}`;
+    row.title = `${problem.message}${problem.hint ? `\n${problem.hint}` : ""}\n${where.textContent}`;
     row.onclick = () => revealLine(problem.file, problem.line);
     frag.appendChild(row);
   }
@@ -81,7 +87,7 @@ export function markProblemsInEditor() {
       from: Math.min(line.from + indent, line.to),
       to: line.to,
       severity: problem.severity,
-      message: problem.message,
+      message: problem.hint ? `${problem.message}\n${problem.hint}` : problem.message,
     });
   }
   view.dispatch(setDiagnostics(view.state, marks));

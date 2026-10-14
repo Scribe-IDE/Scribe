@@ -1606,6 +1606,7 @@ body.resizing #layout > :not(.splitter) { pointer-events: none; }
 .problem.error .problem-icon { color: var(--err); }
 .problem.warning .problem-icon { color: var(--accent); }
 .problem-text { min-width: 0; }
+.problem-hint { display: block; margin-top: 2px; font-size: 12px; line-height: 1.45; color: var(--muted); }
 
 .problem-where {
   flex-shrink: 0;

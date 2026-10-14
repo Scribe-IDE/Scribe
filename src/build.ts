@@ -2,7 +2,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { $, current, mainFile, NOTEBOOK_SOURCE, root, setStatus, showLog, VIEWABLE } from "./core";
-import { parseLog } from "./diagnostics";
+import { explain, parseLog, Problem } from "./diagnostics";
+import { view } from "./editor";
 import { renderPdf } from "./preview";
 import { installLatex } from "./welcome";
 import { problemSummary, setProblems } from "./problems";
@@ -87,6 +88,18 @@ export async function runNotebook() {
 
 // ---------- compile + preview ----------
 export let compiling = false;
+
+/** Problems from a log, with plain-words hints; brace errors also say where the open { is. */
+async function problemsFrom(log: string): Promise<Problem[]> {
+  const found = parseLog(log, mainFile);
+  const texts = new Map<string, string>();
+  for (const file of new Set(found.map((p) => p.file))) {
+    const text = file === current && !$("editor").hidden ? view.state.doc.toString() : await invoke<string>("read_file", { root, rel: file }).catch(() => "");
+    texts.set(file, text);
+  }
+  return explain(found, (file) => texts.get(file) ?? null);
+}
+
 export async function compile() {
   if (!root || compiling) return;
   compiling = true;
@@ -102,7 +115,7 @@ export async function compile() {
     setStatus(`Compiling ${mainFile}…`, "busy");
     const res = await invoke<CompileResult>("compile", { root, main: mainFile });
     // The parsed problems lead; the raw log stays one tab away.
-    setProblems(parseLog(res.log, mainFile), res.log, !res.ok);
+    setProblems(await problemsFrom(res.log), res.log, !res.ok);
     const summary = problemSummary();
     if (res.ok && res.pdf) {
       await renderPdf(res.pdf);
