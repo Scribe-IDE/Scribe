@@ -26,6 +26,7 @@ import { spellExtension } from "./spell";
 import { reportCursor } from "./statusbar";
 import { closeTab } from "./tabs";
 import { displayValue, index, scanLabels } from "./texindex";
+import { zoteroCiteCompletion } from "./zotero";
 
 // ---------- autocompletion ----------
 export const LATEX_COMMANDS = [
@@ -60,7 +61,7 @@ export const LATEX_COMMANDS = [
 }));
 
 const REF_COMMAND = /^(?:ref|eqref|autoref|cref|Cref|pageref|nameref|vref)$/;
-const CITE_COMMAND = /^(?:cite|citep|citet|citealp|citealt|citeauthor|citeyear|parencite|textcite|autocite|footcite|nocite)\*?$/;
+export const CITE_COMMAND = /^(?:cite|citep|citet|citealp|citealt|citeauthor|citeyear|parencite|textcite|autocite|footcite|nocite)\*?$/;
 
 const ENVIRONMENTS = [
   "document", "abstract", "figure", "table", "tabular", "equation", "align", "itemize", "enumerate",
@@ -293,7 +294,7 @@ export function languageFor(path: string): Extension {
 
 export function completionFor(path: string): Extension {
   if (/\.(tex|sty|cls|bib)$/.test(path)) {
-    return autocompletion({ override: [latexCompletion] });
+    return autocompletion({ override: [latexCompletion, zoteroCiteCompletion] });
   }
   if (isNote(path)) return autocompletion({ override: [notesCompletion] });
   // Python gets built-in completions from the language mode

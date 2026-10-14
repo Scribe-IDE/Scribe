@@ -1967,6 +1967,34 @@ fn file_sizes(root: String) -> Result<Vec<FileSize>, String> {
         .collect())
 }
 
+// ---------- Zotero: the user's library through Zotero's local API ----------
+
+/// GET a path of Zotero 7's local API (http://127.0.0.1:23119/api/...). It is off until the user
+/// turns on "Allow other applications on this computer to communicate with Zotero".
+#[tauri::command]
+async fn zotero_get(path: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        if !path.starts_with("/api/") || path.contains("..") {
+            return Err("not a Zotero API path".into());
+        }
+        let out = Command::new("curl")
+            .args(["-s", "--max-time", "15", "-H", "Zotero-API-Version: 3", "-w", "\n%{http_code}"])
+            .arg(format!("http://127.0.0.1:23119{path}"))
+            .output()
+            .map_err(|e| e.to_string())?;
+        let text = String::from_utf8_lossy(&out.stdout).into_owned();
+        let (body, code) = text.rsplit_once('\n').unwrap_or(("", "000"));
+        match code {
+            "200" => Ok(body.to_string()),
+            "000" => Err("Zotero isn't running. Open Zotero and try again.".into()),
+            "403" | "404" => Err("Zotero is running but doesn't share its library yet. In Zotero, open Settings > Advanced and turn on \"Allow other applications on this computer to communicate with Zotero\".".into()),
+            other => Err(format!("Zotero answered with an error ({other}).")),
+        }
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 // ---------- environment ----------
 
 /// The PATH from the user's login shell. Apps launched from Finder or the Dock inherit only a

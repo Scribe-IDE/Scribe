@@ -24,7 +24,7 @@ import { setCompileOnSave, setTheme, settings, toggleSettings, updateSettings, z
 import { showOutline } from "./outline";
 import { deleteEntry, newFile, newFolder, quickOpen, renameEntry, showSidebar, uploadFiles } from "./sidebar";
 import iconUrl from "../src-tauri/icons/icon.svg?url";
-import { addCitation } from "./cite";
+import { addCitation, addFromZotero } from "./cite";
 import { checkBeforeSubmitting } from "./check";
 import { copyAsLatex, exportNotePdf, isNote, newNote, notePrefs, quickNote, refreshNotes, todaysNote } from "./notes";
 import { activeEditor, closeSide, openToSide, sideOpen } from "./split";
@@ -145,6 +145,7 @@ register(
   },
   { id: "edit.copyLatex", group: "Edit", title: "Copy Note as LaTeX", enabled: () => isNote(activeEditor()?.dom.dataset.path), run: copyAsLatex },
   { id: "view.history", group: "View", title: "Show History", enabled: hasProject, run: () => showSidebar("history") },
+  { id: "edit.zotero", group: "Edit", title: "Cite from Zotero…", enabled: hasProject, run: addFromZotero },
   { id: "build.check", group: "Build", title: "Check Before Submitting", enabled: hasProject, run: checkBeforeSubmitting },
   { id: "view.review", group: "View", title: "Show Review", enabled: hasProject, run: () => showSidebar("review") },
   { id: "file.upload", group: "File", title: "Upload Files…", enabled: hasProject, run: () => uploadFiles() },
@@ -280,7 +281,7 @@ const MENU_ICON = {
 
 createMenubar($("menubar"), [
   { title: "File", icon: MENU_ICON.file, entries: ["file.new", "file.newNotebook", "file.newFolder", "file.upload", "-", "file.newNote", "file.todaysNote", "file.quickNote", "file.notePdf", "-", "file.newProject", "file.open", { title: "Open Recent", icon: ICONS.recent, submenu: recentEntries }, "-", "file.save", "file.rename", "file.trash", "-", "file.export", "file.reveal", "-", "file.closeTab", "file.close"] },
-  { title: "Edit", icon: MENU_ICON.edit, entries: ["edit.undo", "edit.redo", "-", "edit.cut", "edit.copy", "edit.paste", "edit.selectAll", "-", "edit.find", "edit.findInProject", "edit.comment", "-", "edit.cite", "edit.copyLatex"] },
+  { title: "Edit", icon: MENU_ICON.edit, entries: ["edit.undo", "edit.redo", "-", "edit.cut", "edit.copy", "edit.paste", "edit.selectAll", "-", "edit.find", "edit.findInProject", "edit.comment", "-", "edit.cite", "edit.zotero", "edit.copyLatex"] },
   {
     title: "View",
     icon: MENU_ICON.view,
@@ -318,6 +319,7 @@ $("tab-symbols").onclick = () => showSidebar("symbols");
 $("side-add-cite").onclick = addCitation;
 $("tab-notes").onclick = () => showSidebar("notes");
 $("tab-history").onclick = () => showSidebar("history");
+$("side-zotero").onclick = addFromZotero;
 $("tab-review").onclick = () => showSidebar("review");
 $("side-upload").onclick = () => uploadFiles();
 $("tab-git").onclick = () => showSidebar("git");

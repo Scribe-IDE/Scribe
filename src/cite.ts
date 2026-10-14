@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { $, current, dirty, root, setStatus } from "./core";
 import { COMMAND_ICONS, ICONS } from "./icons";
 import { openCitationNote } from "./notes";
+import { pickFromZotero } from "./zotero";
 import { promptInput } from "./palette";
 import { listFiles, openFile, revealLine, save } from "./project";
 import { activeEditor } from "./split";
@@ -26,7 +27,7 @@ function insertCite(key: string): boolean {
 
 // Adds the entry to the project's .bib file (the first one, or a new refs.bib) and returns
 // the key it ended up with.
-async function addToBibliography(citation: Citation): Promise<{ key: string; file: string; added: boolean }> {
+export async function addToBibliography(citation: Citation): Promise<{ key: string; file: string; added: boolean }> {
   const file = (await listFiles()).find((f) => f.endsWith(".bib")) ?? "refs.bib";
   if (current === file && dirty) await save();
   const text = await invoke<string>("read_file", { root, rel: file }).catch(() => "");
@@ -48,6 +49,22 @@ async function addToBibliography(citation: Citation): Promise<{ key: string; fil
   await invoke("write_file", { root, rel: file, content: (text.trimEnd() ? text.trimEnd() + "\n\n" : "") + entry });
   if (current === file) await openFile(file); // show the new entry in the open file
   return { key, file, added: true };
+}
+
+/** Add a paper from the Zotero library to the bibliography, and cite it at the cursor. */
+export function addFromZotero() {
+  if (!root) return;
+  pickFromZotero(async (item) => {
+    try {
+      const { key, file, added } = await addToBibliography(item);
+      const cited = insertCite(key);
+      setStatus(`${added ? `Added ${key} to ${file}` : `${key} is already in ${file}`}${cited ? " and cited it" : ""}`, "ok");
+      await refreshIndex();
+      renderReferences();
+    } catch (e) {
+      setStatus(String(e), "err");
+    }
+  });
 }
 
 export function addCitation() {

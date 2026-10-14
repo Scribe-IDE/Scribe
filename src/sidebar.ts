@@ -457,7 +457,7 @@ export function showSidebar(which: SidebarTab) {
   // Each panel shows its own actions: creating things beside the file list, refresh elsewhere.
   $("side-new").hidden = $("side-new-folder").hidden = $("side-upload").hidden = which !== "files";
   $("side-refresh").hidden = which === "files" || which === "search" || which === "symbols" || which === "notes";
-  $("side-add-cite").hidden = which !== "references";
+  $("side-add-cite").hidden = $("side-zotero").hidden = which !== "references";
   $("side-refresh").onclick = () => showSidebar(which);
   if (which === "figures") renderGallery();
   if (which === "files") renderOutline();
