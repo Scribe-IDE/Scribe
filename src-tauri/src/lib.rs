@@ -1243,6 +1243,266 @@ fn kernel_stop() -> Result<(), String> {
     Ok(())
 }
 
+// ---------- export: a self-contained bundle for arXiv or a journal ----------
+// Publishers compile the source themselves and know nothing about notebooks, so the bundle is
+// plain LaTeX: \input files inlined, \nbfig turned into \includegraphics, and every \nbval,
+// \nbtable, \nbmath and \nbenv replaced by the value it currently stands for.
+
+/// The text inside the braces opening at byte `open`, and the index just past the closing brace.
+fn braced_at(text: &str, open: usize) -> Option<(&str, usize)> {
+    let bytes = text.as_bytes();
+    if bytes.get(open) != Some(&b'{') {
+        return None;
+    }
+    let mut depth = 0usize;
+    let mut i = open;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'\\' => i += 1, // skip the escaped character
+            b'{' => depth += 1,
+            b'}' => {
+                depth -= 1;
+                if depth == 0 {
+                    return Some((&text[open + 1..i], i + 1));
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    None
+}
+
+/// name -> LaTeX, as last written by the notebooks into scribe-values.tex.
+fn exported_values(root_dir: &Path) -> std::collections::HashMap<String, String> {
+    let mut out = std::collections::HashMap::new();
+    let text = std::fs::read_to_string(root_dir.join(VALUES_TEX)).unwrap_or_default();
+    let marker = "\\csname nbval@";
+    let mut rest = text.as_str();
+    while let Some(at) = rest.find(marker) {
+        rest = &rest[at + marker.len()..];
+        let Some(end) = rest.find("\\endcsname") else { break };
+        let name = rest[..end].to_string();
+        let after = end + "\\endcsname".len();
+        match braced_at(rest, after) {
+            Some((value, next)) => {
+                out.insert(name, value.to_string());
+                rest = &rest[next..];
+            }
+            None => break,
+        }
+    }
+    out
+}
+
+/// True when `at` in `text` sits after an unescaped % on its line.
+fn in_comment(text: &str, at: usize) -> bool {
+    let line = &text[text[..at].rfind('\n').map_or(0, |i| i + 1)..at];
+    let bytes = line.as_bytes();
+    (0..bytes.len()).any(|i| bytes[i] == b'%' && (i == 0 || bytes[i - 1] != b'\\'))
+}
+
+/// Replaces every `\command{arg}` outside comments with what `f(arg)` returns.
+fn replace_command(text: &str, command: &str, mut f: impl FnMut(&str) -> String) -> String {
+    let needle = format!("\\{command}{{");
+    let mut out = String::with_capacity(text.len());
+    let mut from = 0;
+    while let Some(found) = text[from..].find(&needle) {
+        let at = from + found;
+        let open = at + needle.len() - 1;
+        match braced_at(text, open) {
+            Some((arg, end)) if !in_comment(text, at) => {
+                out.push_str(&text[from..at]);
+                out.push_str(&f(arg.trim()));
+                from = end;
+            }
+            _ => {
+                out.push_str(&text[from..open + 1]);
+                from = open + 1;
+            }
+        }
+    }
+    out.push_str(&text[from..]);
+    out
+}
+
+/// The paper as one file: \input, \include and \subfile replaced by what they point to.
+fn inline_inputs(root: &str, rel: &str, depth: usize, warnings: &mut Vec<String>) -> Result<String, String> {
+    let text = std::fs::read_to_string(resolve(root, rel)?).map_err(|e| format!("{rel}: {e}"))?;
+    if depth > 8 {
+        warnings.push(format!("{rel}: files include each other too deeply; left as it is."));
+        return Ok(text);
+    }
+    let mut text = text;
+    for command in ["input", "include", "subfile"] {
+        let mut failed = Vec::new();
+        text = replace_command(&text, command, |target| {
+            let file = if Path::new(target).extension().is_some() { target.to_string() } else { format!("{target}.tex") };
+            let file = file.trim_start_matches("./").to_string();
+            match inline_inputs(root, &file, depth + 1, &mut failed) {
+                Ok(inner) => format!("% --- {file} ---\n{}\n% --- end of {file} ---", inner.trim_end()),
+                Err(e) => {
+                    failed.push(format!("Couldn't inline {file}: {e}"));
+                    format!("\\{command}{{{target}}}")
+                }
+            }
+        });
+        warnings.append(&mut failed);
+    }
+    Ok(text)
+}
+
+struct ExportBundle {
+    /// (path inside the bundle, contents)
+    files: Vec<(String, Vec<u8>)>,
+    warnings: Vec<String>,
+}
+
+fn build_export(root: &str, main: &str) -> Result<ExportBundle, String> {
+    let root_dir = Path::new(root).canonicalize().map_err(|e| e.to_string())?;
+    let mut warnings = Vec::new();
+    let mut tex = inline_inputs(root, main, 0, &mut warnings)?;
+    let values = exported_values(&root_dir);
+    if values.is_empty() && tex.contains("\\nbval{") {
+        warnings.push("No notebook values were found. Compile the paper first so they exist.".into());
+    }
+
+    // figures from notebooks become ordinary graphics
+    let mut graphics: Vec<String> = Vec::new();
+    tex = replace_command(&tex, "nbfig", |id| {
+        graphics.push(format!("figures/{id}.pdf"));
+        format!("\\includegraphics[width=\\linewidth]{{figures/{id}.pdf}}")
+    });
+    // values, tables and formulas become the text they stand for
+    for command in ["nbval", "nbtable", "nbmath"] {
+        tex = replace_command(&tex, command, |name| match values.get(name) {
+            Some(value) => value.clone(),
+            None => {
+                warnings.push(format!("\\{command}{{{name}}} has no value; it will print as ??."));
+                "\\textbf{??}".into()
+            }
+        });
+    }
+    if let Some(env) = values.get("scribe-env") {
+        // \nbenv takes no argument; make sure a longer command name isn't caught
+        let mut out = String::new();
+        let mut rest = tex.as_str();
+        while let Some(at) = rest.find("\\nbenv") {
+            let after = &rest[at + 6..];
+            out.push_str(&rest[..at]);
+            if after.chars().next().is_some_and(|c| c.is_ascii_alphabetic()) {
+                out.push_str("\\nbenv");
+            } else {
+                out.push_str(env);
+            }
+            rest = after;
+        }
+        out.push_str(rest);
+        tex = out;
+    }
+
+    // the generated package goes; graphicx (and siunitx, if the values use it) take its place
+    let needs_siunitx = ["\\qty{", "\\num{", "\\unit{"].iter().any(|c| tex.contains(c)) && !tex.contains("{siunitx}");
+    let mut replacement = String::from("\\usepackage{graphicx}");
+    if needs_siunitx {
+        replacement.push_str("\n\\usepackage{siunitx}\n\\sisetup{separate-uncertainty=true}");
+    }
+    for pkg in ["scribe-figures", "papyrus-figures"] {
+        tex = tex.replace(&format!("\\usepackage{{{pkg}}}"), &replacement);
+    }
+
+    // graphics the paper includes directly
+    let mut direct = Vec::new();
+    replace_command(&tex, "includegraphics", |path| {
+        direct.push(path.to_string());
+        String::new()
+    });
+    // (\includegraphics[options]{path} has its brace after the options, which the helper above
+    // doesn't see; pick those up too)
+    let mut rest = tex.as_str();
+    while let Some(at) = rest.find("\\includegraphics[") {
+        let after = &rest[at..];
+        if let Some(close) = after.find(']') {
+            if let Some((path, _)) = braced_at(after, close + 1) {
+                direct.push(path.trim().to_string());
+            }
+        }
+        rest = &rest[at + 1..];
+    }
+    for path in direct {
+        let candidates = [path.clone(), format!("{path}.pdf"), format!("{path}.png"), format!("{path}.jpg")];
+        if let Some(found) = candidates.iter().find(|c| resolve(root, c).is_ok_and(|p| p.is_file())) {
+            graphics.push(found.clone());
+        }
+    }
+    graphics.sort();
+    graphics.dedup();
+
+    let stem = Path::new(main).file_stem().unwrap_or_default().to_string_lossy().to_string();
+    let mut files: Vec<(String, Vec<u8>)> = vec![(format!("{stem}.tex"), tex.clone().into_bytes())];
+    for graphic in graphics {
+        match resolve(root, &graphic).and_then(|p| std::fs::read(p).map_err(|e| e.to_string())) {
+            Ok(bytes) => files.push((graphic, bytes)),
+            Err(_) => warnings.push(format!("{graphic} is missing; compile the paper to produce it.")),
+        }
+    }
+
+    // bibliography: the .bib sources, any local style, and the compiled .bbl that arXiv wants
+    let add_if_present = |rel: String, files: &mut Vec<(String, Vec<u8>)>| {
+        if let Ok(bytes) = resolve(root, &rel).and_then(|p| std::fs::read(p).map_err(|e| e.to_string())) {
+            if !files.iter().any(|(name, _)| *name == rel) {
+                files.push((rel, bytes));
+            }
+        }
+    };
+    let mut bibs = Vec::new();
+    replace_command(&tex, "bibliography", |list| {
+        bibs.extend(list.split(',').map(|b| format!("{}.bib", b.trim().trim_end_matches(".bib"))));
+        String::new()
+    });
+    replace_command(&tex, "addbibresource", |file| {
+        bibs.push(file.to_string());
+        String::new()
+    });
+    replace_command(&tex, "bibliographystyle", |style| {
+        bibs.push(format!("{style}.bst"));
+        String::new()
+    });
+    for bib in bibs {
+        add_if_present(bib, &mut files);
+    }
+    if let Ok(bbl) = std::fs::read(root_dir.join(BUILD_DIR).join(format!("{stem}.bbl"))) {
+        files.push((format!("{stem}.bbl"), bbl));
+    }
+
+    Ok(ExportBundle { files, warnings })
+}
+
+#[derive(Serialize)]
+struct ExportReport {
+    files: Vec<String>,
+    warnings: Vec<String>,
+}
+
+/// Writes the submission bundle for `main` to the zip file at `dest` (chosen by the user).
+#[tauri::command]
+async fn export_bundle(root: String, main: String, dest: String) -> Result<ExportReport, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let bundle = build_export(&root, &main)?;
+        let file = std::fs::File::create(&dest).map_err(|e| format!("{dest}: {e}"))?;
+        let mut zip = zip::ZipWriter::new(file);
+        let options = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Deflated);
+        for (name, bytes) in &bundle.files {
+            zip.start_file(name.as_str(), options).map_err(|e| e.to_string())?;
+            zip.write_all(bytes).map_err(|e| e.to_string())?;
+        }
+        zip.finish().map_err(|e| e.to_string())?;
+        Ok(ExportReport { files: bundle.files.into_iter().map(|(name, _)| name).collect(), warnings: bundle.warnings })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 // ---------- citations: BibTeX for a DOI or an arXiv ID ----------
 
 #[derive(Serialize, Debug)]
@@ -1757,12 +2017,12 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .invoke_handler(tauri::generate_handler![
-            list_files, list_dirs, create_dir, rename_path, delete_path,
+            list_files, list_dirs, create_dir, rename_path, delete_path, import_files,
             read_file, write_file, read_binary, compile,
             parse_notebook, run_notebook, generate_style,
-            git_status, git_branch, git_overview, git_diff, git_commit, git_push, git_init, search_project, read_settings, write_settings,
+            git_status, git_branch, git_overview, git_diff, git_commit, git_push, git_init, git_identity, search_project, read_settings, write_settings,
             kernel_start, kernel_run_cell, kernel_stop,
-            spell_available, spell_check, spell_suggest, spell_learn,
+            spell_available, spell_check, spell_suggest, spell_learn, fetch_bibtex, export_bundle,
             python_bin, check_tools, pty_start, pty_write, pty_resize, pty_kill,
             synctex_edit, synctex_view
         ])
@@ -1929,6 +2189,85 @@ mod tests {
         assert!(spell::misspelled("acuracy"));
         assert!(spell::suggest("acuracy").iter().any(|g| g == "accuracy"), "{:?}", spell::suggest("acuracy"));
         assert_eq!(spell_check(vec!["loss".into(), "validaton".into()]), ["validaton"]);
+    }
+
+    #[test]
+    fn imports_files_without_overwriting() {
+        let base = std::env::temp_dir().join(format!("scribe-import-{}", std::process::id()));
+        let project = base.join("project");
+        std::fs::create_dir_all(&project).unwrap();
+        let outside = base.join("plot.png");
+        std::fs::write(&outside, b"one").unwrap();
+        let root = project.to_string_lossy().to_string();
+        let src = vec![outside.to_string_lossy().to_string()];
+
+        assert_eq!(import_files(root.clone(), "figures".into(), src.clone()).unwrap(), ["figures/plot.png"]);
+        std::fs::write(&outside, b"two").unwrap();
+        assert_eq!(import_files(root.clone(), "figures".into(), src.clone()).unwrap(), ["figures/plot 2.png"]);
+        assert_eq!(std::fs::read(project.join("figures/plot.png")).unwrap(), b"one"); // first copy untouched
+        assert!(import_files(root.clone(), "../elsewhere".into(), src).is_err());
+
+        std::fs::remove_dir_all(&base).unwrap();
+    }
+
+    #[test]
+    fn export_is_plain_latex_that_compiles_on_its_own() {
+        let _turn = EXAMPLE.lock().unwrap_or_else(|e| e.into_inner());
+        if run_notebook_blocking(&example(), "notebooks/experiment.py").map(|r| r.ok) != Ok(true) {
+            return; // no Python with matplotlib here
+        }
+        generate_style(example()).unwrap();
+        let _ = compile_blocking(&example(), "main.tex"); // produces the .bbl
+
+        let bundle = build_export(&example(), "main.tex").unwrap();
+        let names: Vec<&str> = bundle.files.iter().map(|(n, _)| n.as_str()).collect();
+        assert!(names.contains(&"main.tex") && names.contains(&"figures/fig-curves.pdf") && names.contains(&"refs.bib"), "{names:?}");
+        assert!(!names.iter().any(|n| n.ends_with(".py") || n.ends_with(".sty")), "{names:?}");
+        let tex = String::from_utf8(bundle.files[0].1.clone()).unwrap();
+        // nothing of Scribe's is left for a publisher's TeX to trip over
+        for gone in ["\\nbval", "\\nbfig", "\\nbtable", "\\nbmath", "\\nbenv", "\\input{", "scribe-figures"] {
+            assert!(!tex.contains(gone), "{gone} survived the export");
+        }
+        assert!(tex.contains("\\includegraphics[width=\\linewidth]{figures/fig-curves.pdf}"));
+        assert!(tex.contains("\\begin{tabular}") && tex.contains("\\usepackage{siunitx}"));
+        assert!(tex.contains("\\section{Method}"), "sections were not inlined");
+        assert!(bundle.warnings.is_empty(), "{:?}", bundle.warnings);
+
+        // and it builds in an empty folder
+        let dir = std::env::temp_dir().join(format!("scribe-export-{}", std::process::id()));
+        for (name, bytes) in &bundle.files {
+            let path = dir.join(name);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, bytes).unwrap();
+        }
+        let res = compile_blocking(&dir.to_string_lossy(), "main.tex").unwrap();
+        assert!(res.ok, "the exported paper did not compile:\n{}", res.log);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn builds_citations_from_doi_and_arxiv_responses() {
+        // what doi.org answered for Knuth's paper
+        let doi = " @article{Knuth_1984, title={Literate Programming}, volume={27}, ISSN={1460-2067}, url={http://dx.doi.org/10.1093/comjnl/27.2.97}, DOI={10.1093/comjnl/27.2.97}, number={2}, journal={The Computer Journal}, publisher={Oxford University Press (OUP)}, author={Knuth, D. E.}, year={1984}, month=Feb, pages={97–111} }";
+        let c = tidy_doi_bibtex(doi).unwrap();
+        assert_eq!(c.key, "knuth1984");
+        assert!(c.bibtex.starts_with("@article{knuth1984,\n"), "{}", c.bibtex);
+        assert!(c.bibtex.contains("title     = {Literate Programming}") && c.bibtex.contains("pages     = {97--111}"), "{}", c.bibtex);
+        assert!(!c.bibtex.contains("ISSN") && !c.bibtex.contains("url"), "{}", c.bibtex);
+        assert!(tidy_doi_bibtex("<html>DOI Not Found</html>").is_err());
+
+        let atom = "<feed><title>arXiv Query</title><entry><id>http://arxiv.org/abs/1412.6980v9</id>\n<title>Adam: A Method for\n  Stochastic Optimization</title><published>2014-12-22T13:54:29Z</published><author><name>Diederik P. Kingma</name></author><author><name>Jimmy Ba</name></author><arxiv:primary_category term=\"cs.LG\"/></entry></feed>";
+        let c = arxiv_bibtex(atom, "1412.6980v9").unwrap();
+        assert_eq!(c.key, "kingma2014");
+        assert!(c.bibtex.contains("author        = {Diederik P. Kingma and Jimmy Ba}"), "{}", c.bibtex);
+        assert!(c.bibtex.contains("title         = {Adam: A Method for Stochastic Optimization}"), "{}", c.bibtex);
+        assert!(c.bibtex.contains("eprint        = {1412.6980}") && c.bibtex.contains("primaryClass  = {cs.LG}"), "{}", c.bibtex);
+        assert!(arxiv_bibtex("<feed><title>arXiv Query</title></feed>", "0000.00000").is_err());
+
+        assert!(matches!(classify_paper_id("https://doi.org/10.1093/comjnl/27.2.97"), Some(PaperId::Doi(d)) if d == "10.1093/comjnl/27.2.97"));
+        assert!(matches!(classify_paper_id("arXiv:1412.6980v9"), Some(PaperId::Arxiv(a)) if a == "1412.6980v9"));
+        assert!(matches!(classify_paper_id("https://arxiv.org/abs/hep-th/9901001"), Some(PaperId::Arxiv(_))));
+        assert!(classify_paper_id("knuth 1984").is_none());
     }
 
     #[test]

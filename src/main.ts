@@ -12,15 +12,21 @@ import { COMMAND_ICONS, ICONS } from "./icons";
 import { createMenubar, MenuEntry, openContextMenu } from "./menubar";
 import { closePalette, openPalette } from "./palette";
 import { compile, runNotebook, saveFile } from "./build";
-import { $, baseName, current, logEl, logPanel, PAGE, root, setLogView, statusEl, VIEWABLE } from "./core";
+import { invoke } from "@tauri-apps/api/core";
+import { save } from "@tauri-apps/plugin-dialog";
+import { $, baseName, current, logEl, logPanel, mainFile, PAGE, root, setLogView, setStatus, showLog, statusEl, VIEWABLE } from "./core";
 import { view } from "./editor";
 import { sizes, togglePane } from "./layout";
-import { activeCell, cellRunners, cellViews, isNotebook, restartKernel } from "./notebook";
+import { activeCell, cellRunners, isNotebook, restartKernel } from "./notebook";
 import { closeProject, listFiles, openFolder, openProject } from "./project";
-import { canShowInPdf, focusPdfFind, hasPdf, lastPdf, showInPdf, zoomPdf } from "./preview";
+import { canShowInPdf, focusPdfFind, goToSelectionSource, hasPdf, hasPdfSelection, lastPdf, showInPdf, zoomPdf } from "./preview";
 import { setCompileOnSave, setTheme, settings, toggleSettings, updateSettings, zoom } from "./settings";
-import { deleteEntry, newFile, newFolder, quickOpen, renameEntry, showSidebar } from "./sidebar";
-import { closeSide, openToSide, sideOpen, sideView } from "./split";
+import { showOutline } from "./outline";
+import { deleteEntry, newFile, newFolder, quickOpen, renameEntry, showSidebar, uploadFiles } from "./sidebar";
+import iconUrl from "../src-tauri/icons/icon.svg?url";
+import { addCitation } from "./cite";
+import { activeEditor, closeSide, openToSide, sideOpen } from "./split";
+import { loadProfile, onProfileChange } from "./profile";
 import { renderProblemCount } from "./statusbar";
 import { closeTab, openTabs } from "./tabs";
 import { canRunFile, runFile, shellAlive, showTerminal, stopTerminal, termPanel } from "./terminal";
@@ -98,6 +104,7 @@ register(
     id: "file.closeTab", group: "File", title: "Close Tab", keys: "Mod-w",
     run: () => (current ? closeTab(current) : openTabs.length ? closeTab(openTabs[0]) : getCurrentWindow().close()),
   },
+  { id: "file.export", group: "File", title: "Export for Submission…", run: exportForSubmission, enabled: hasProject },
   { id: "file.close", group: "File", title: "Close Project", run: closeProject, enabled: hasProject },
 
   { id: "edit.undo", group: "Edit", title: "Undo", keys: "Mod-z", passive: true, enabled: canEdit, run: () => editAction(undo, "undo") },
@@ -184,9 +191,33 @@ register(
 
 for (const command of allCommands()) command.icon = COMMAND_ICONS[command.id];
 
+// A zip a publisher can compile: one .tex with everything inlined, the figures, the bibliography.
+async function exportForSubmission() {
+  if (!root) return;
+  await compile(); // so figures, values and the .bbl are current
+  const dest = await save({
+    title: "Export for submission",
+    defaultPath: `${baseName(root)}-submission.zip`,
+    filters: [{ name: "Zip archive", extensions: ["zip"] }],
+  });
+  if (!dest) return;
+  try {
+    const report = await invoke<{ files: string[]; warnings: string[] }>("export_bundle", { root, main: mainFile, dest });
+    const summary = `Exported ${report.files.length} files to ${baseName(dest)}`;
+    if (report.warnings.length) {
+      showLog("Export", `${summary}\n\nCheck before submitting:\n${report.warnings.map((w) => `  ${w}`).join("\n")}\n\nIncluded:\n${report.files.map((f) => `  ${f}`).join("\n")}`);
+      setStatus(`${summary}, with ${report.warnings.length} thing${report.warnings.length === 1 ? "" : "s"} to check`, "err");
+    } else {
+      setStatus(summary, "ok");
+    }
+  } catch (e) {
+    setStatus(`Couldn't export: ${e}`, "err");
+  }
+}
+
 // Choose a text file to open beside the current one.
 async function pickSideFile() {
-  const files = (await listFiles()).filter((f) => !VIEWABLE.test(f) && !f.endsWith(".ipynb") && f !== current && /\.(tex|py|bib|sty|cls|txt|md)$/.test(f));
+  const files = (await listFiles()).filter((f) => !VIEWABLE.test(f) && f !== current && /\.(tex|py|ipynb|bib|sty|cls|txt|md)$/.test(f));
   openPalette({
     placeholder: "Open to the side",
     empty: "No other text files in this project.",

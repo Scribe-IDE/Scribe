@@ -9,6 +9,7 @@ import { $, assignDirty, baseName, current, dirty, mainFile, renderCrumb, root, 
 import { createEditorState, prefEffects, view } from "./editor";
 import { isNotebook, leaveNotebook, saveNotebook, stopKernel, updateNotebookView } from "./notebook";
 import { resetPdf } from "./preview";
+import { restoreCursor, restoreSession, saveSession } from "./session";
 import { loadSettings, resetSettings, toggleSettings } from "./settings";
 import { closeSide, sideFile } from "./split";
 import { renderFileInfo } from "./statusbar";
@@ -58,14 +59,18 @@ export async function openProject(path: string) {
   // Prefer a file that declares \documentclass as the compile root.
   setMainFile(files.includes("main.tex") ? "main.tex" : files.find((f) => f.endsWith(".tex") && f !== VALUES_TEX) ?? "main.tex");
   await loadSettings(); // before the file list is drawn: it holds the saved file order
-  if (files.includes(mainFile)) await openFile(mainFile);
-  else showNoFile();
+  // Back to where this project was left; a project opened for the first time starts on its paper.
+  if (!(await restoreSession(files))) {
+    if (files.includes(mainFile)) await openFile(mainFile);
+    else showNoFile();
+  }
   refreshIndex().catch(() => {});
 }
 
 export async function closeProject() {
   if (!root) return;
   if (dirty) await save();
+  saveSession();
   await closeSide();
   await stopKernel();
   await resetTerminal();
@@ -206,6 +211,7 @@ export async function openFile(rel: string) {
   }
   assignDirty(false);
   noteOpened(rel);
+  if (!back) restoreCursor(rel); // a tab reopened from a saved session returns to its place
   renderCrumb();
   if (rel.endsWith(".tex") && text.includes("\\documentclass")) setMainFile(rel);
   markProblemsInEditor();

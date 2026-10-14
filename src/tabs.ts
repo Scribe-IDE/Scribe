@@ -6,9 +6,16 @@ import { view } from "./editor";
 import { ICONS } from "./icons";
 import { leaveNotebook } from "./notebook";
 import { openFile, save, setMainView } from "./project";
+import { rememberCursor, saveSessionSoon } from "./session";
 import { FILE_ICON, refreshFiles } from "./sidebar";
 
 export let openTabs: string[] = [];
+
+/** Replace the set of tabs (restoring a session). */
+export function setOpenTabs(tabs: string[]) {
+  openTabs = [...tabs];
+  renderTabs();
+}
 
 interface Stashed { state: EditorState; scroll: number; }
 const stashed = new Map<string, Stashed>();
@@ -17,6 +24,7 @@ const stashed = new Map<string, Stashed>();
 export function stashEditor() {
   if (current && !$("editor").hidden) {
     stashed.set(current, { state: view.state, scroll: view.scrollDOM.scrollTop });
+    rememberCursor();
   }
 }
 
@@ -80,6 +88,7 @@ export function renderTabs() {
     frag.appendChild(tab);
   }
   bar.replaceChildren(frag);
+  saveSessionSoon();
   bar.querySelector(".tab.active")?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
 }
 

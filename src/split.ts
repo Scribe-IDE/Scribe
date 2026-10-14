@@ -76,6 +76,7 @@ export async function closeSide() {
   clear();
   pane.hidden = true;
   handle.hidden = true;
+  saveSessionSoon();
 }
 
 /** Open a text file in the side pane, for reading or editing beside the main file. */
@@ -121,6 +122,7 @@ export async function openToSide(rel: string) {
   });
   renderTitle(rel);
   sideView.focus();
+  saveSessionSoon();
 }
 
 /** Show something read-only (a diff, say) in the side pane. */
