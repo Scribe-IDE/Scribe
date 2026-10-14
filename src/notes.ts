@@ -4,6 +4,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
+import { languages } from "@codemirror/language-data";
 import { Completion, CompletionContext, CompletionResult, snippet } from "@codemirror/autocomplete";
 import { EditorSelection, EditorState, Extension, Prec, Range, StateEffect, StateField } from "@codemirror/state";
 import { Decoration, DecorationSet, EditorView, keymap, WidgetType } from "@codemirror/view";
@@ -121,6 +122,37 @@ function imageUrl(rel: string): Promise<string> {
   return url;
 }
 
+class CodeHeader extends WidgetType {
+  constructor(readonly lang: string, readonly code: string) { super(); }
+  eq(other: CodeHeader) { return other.lang === this.lang && other.code === this.code; }
+  toDOM(view: EditorView) {
+    const bar = document.createElement("span");
+    bar.className = "cm-md-codehead";
+    const label = document.createElement("span");
+    label.className = "cm-md-codelang";
+    label.textContent = this.lang || "code";
+    // A click on the label edits the fence (to change the language, say).
+    label.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      view.dispatch({ selection: { anchor: view.posAtDOM(bar) + 3 + this.lang.length } });
+      view.focus();
+    });
+    const copy = document.createElement("button");
+    copy.className = "cm-md-codecopy";
+    copy.textContent = "Copy";
+    copy.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      navigator.clipboard.writeText(this.code).then(() => {
+        copy.textContent = "Copied";
+        setTimeout(() => { copy.textContent = "Copy"; }, 1200);
+      }).catch(() => {});
+    });
+    bar.append(label, copy);
+    return bar;
+  }
+  ignoreEvent() { return true; }
+}
+
 class ImageWidget extends WidgetType {
   constructor(readonly rel: string) { super(); }
   eq(other: ImageWidget) { return other.rel === this.rel; }
@@ -172,7 +204,8 @@ function decorate(state: EditorState, path: string): DecorationSet {
     syntaxTree(state).iterate({
       enter(node) {
         if (!QUIET.has(node.name) || taken(node.from)) return;
-        if (node.name === "CodeMark" && text.startsWith("```", node.from)) return; // fences stay
+        // backticks around inline code sit inside the code range; fences are handled with their block
+        if (node.name === "CodeMark" ? text.startsWith("```", node.from) : taken(node.from)) return;
         if (node.name === "URL" && text[node.from - 1] !== "(") return; // only a link's address, not a bare URL
         // the space after a heading's #s goes too
         const to = node.name === "HeaderMark" && text[node.to] === " " ? node.to + 1 : node.to;
@@ -181,13 +214,23 @@ function decorate(state: EditorState, path: string): DecorationSet {
     });
   }
 
+  // Code blocks: highlighted in their language (see codeLanguages below), on a panel of their
+  // own. Away from the cursor, the opening fence becomes a label with a Copy button and the
+  // closing fence disappears.
   for (const [from, to] of code) {
-    if (text.startsWith("```", from)) {
-      for (let line = state.doc.lineAt(from); ; line = state.doc.line(line.number + 1)) {
-        out.push(Decoration.line({ class: "cm-md-codeblock" }).range(line.from));
-        if (line.to >= to || line.number === state.doc.lines) break;
-      }
+    if (!text.startsWith("```", from)) continue;
+    const first = state.doc.lineAt(from);
+    const last = state.doc.lineAt(to);
+    for (let line = first; ; line = state.doc.line(line.number + 1)) {
+      const edge = line.number === first.number ? " cm-md-codeblock-first" : line.number === last.number ? " cm-md-codeblock-last" : "";
+      out.push(Decoration.line({ class: "cm-md-codeblock" + edge }).range(line.from));
+      if (line.number >= last.number || line.number === state.doc.lines) break;
     }
+    if (!notePrefs.live || touches(from, to) || last.number === first.number) continue;
+    const lang = first.text.slice(3).trim().split(/\s+/)[0] ?? "";
+    const body = state.sliceDoc(Math.min(first.to + 1, last.from), Math.max(first.to + 1, last.from - 1));
+    out.push(Decoration.replace({ widget: new CodeHeader(lang, body) }).range(first.from, first.to));
+    if (/^```\s*$/.test(last.text)) out.push(Decoration.replace({}).range(last.from, last.to));
   }
 
   if (notePrefs.live) {
@@ -477,7 +520,8 @@ const handlers = (path: string) => EditorView.domEventHandlers({
 export function notesExtension(path: string): Extension {
   if (!isNote(path)) return [];
   return [
-    markdown({ base: markdownLanguage }),
+    // Fenced code is highlighted in its own language, loaded the first time it appears.
+    markdown({ base: markdownLanguage, codeLanguages: languages }),
     livePreview(path),
     mathTyping,
     leaveMath,
@@ -516,7 +560,16 @@ function inlineLatex(text: string): string {
 
 const SECTION = ["section*", "subsection*", "subsubsection*", "paragraph", "paragraph", "paragraph"];
 
-export function markdownToLatex(md: string): string {
+// Fence names to the languages the listings package knows.
+const LISTINGS: Record<string, string> = {
+  python: "Python", py: "Python", c: "C", cpp: "C++", "c++": "C++", java: "Java", r: "R", matlab: "Matlab",
+  octave: "Octave", bash: "bash", sh: "sh", shell: "bash", zsh: "bash", sql: "SQL", html: "HTML", xml: "XML",
+  tex: "TeX", latex: "TeX", fortran: "Fortran", haskell: "Haskell", julia: "Python", perl: "Perl", ruby: "Ruby",
+  go: "Go", rust: "C", js: "Java", javascript: "Java", ts: "Java", typescript: "Java",
+};
+
+/** `listings`: code blocks as coloured lstlisting (for a note's PDF) rather than verbatim (for pasting). */
+export function markdownToLatex(md: string, { listings = false } = {}): string {
   const out: string[] = [];
   const lists: { indent: number; env: string }[] = [];
   const closeLists = (indent = -1) => {
@@ -529,7 +582,12 @@ export function markdownToLatex(md: string): string {
       closeLists();
       const body: string[] = [];
       for (i++; i < lines.length && !/^```/.test(lines[i]); i++) body.push(lines[i]);
-      out.push("\\begin{verbatim}", ...body, "\\end{verbatim}");
+      if (listings) {
+        const lang = LISTINGS[line.slice(3).trim().split(/\s+/)[0]?.toLowerCase() ?? ""];
+        out.push(`\\begin{lstlisting}${lang ? `[language=${lang}]` : ""}`, ...body, "\\end{lstlisting}");
+      } else {
+        out.push("\\begin{verbatim}", ...body, "\\end{verbatim}");
+      }
       continue;
     }
     const display = /^\s*\$\$(.*)$/.exec(line);
@@ -994,6 +1052,12 @@ const NOTE_PREAMBLE = String.raw`\documentclass[11pt]{article}
 \usepackage{amsmath,amssymb,graphicx}
 \usepackage[normalem]{ulem}
 \usepackage[hidelinks]{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+\lstset{basicstyle=\ttfamily\small, columns=fullflexible, keepspaces=true, breaklines=true,
+  backgroundcolor=\color[HTML]{F4F1EA}, frame=none, xleftmargin=0.6em, xrightmargin=0.6em, aboveskip=0.8em, belowskip=0.8em,
+  keywordstyle=\color[HTML]{9D0006}\bfseries, stringstyle=\color[HTML]{79740E}, commentstyle=\color[HTML]{928374}\itshape,
+  showstringspaces=false, upquote=true, extendedchars=true}
 \setlength{\parindent}{0pt}
 \setlength{\parskip}{0.6em}
 `;
@@ -1007,7 +1071,7 @@ export async function exportNotePdf() {
   const folder = note.includes("/") ? note.slice(0, note.lastIndexOf("/") + 1) : "";
   // Spaces and accents in a TeX file name cause trouble with some engines; the PDF gets a plain one.
   const stem = noteName(note).normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^\w-]+/g, "-").replace(/^-+|-+$/g, "") || "note";
-  const tex = `${NOTE_PREAMBLE}\\graphicspath{{${folder || "./"}}}\n\\begin{document}\n${markdownToLatex(md)}\\end{document}\n`;
+  const tex = `${NOTE_PREAMBLE}\\graphicspath{{${folder || "./"}}}\n\\begin{document}\n${markdownToLatex(md, { listings: true })}\\end{document}\n`;
   const main = `.scribe/notes/${stem}.tex`;
   setStatus(`Typesetting ${noteName(note)}…`, "busy");
   try {

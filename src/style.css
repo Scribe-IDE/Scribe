@@ -783,7 +783,13 @@ body.resizing #layout > :not(.splitter) { pointer-events: none; }
 .cm-notes .cm-md-h3 { font-size: 1.12em; padding-top: 0.3em; }
 .cm-notes .cm-md-hash { color: var(--faint); font-weight: 400; }
 .cm-notes .cm-md-quote { padding-left: 16px; font-style: italic; color: var(--fg-dim); }
-.cm-notes .cm-md-codeblock { font-family: var(--font-mono); font-size: 0.9em; background: var(--panel); }
+.cm-notes .cm-md-codeblock { padding-left: 14px; padding-right: 14px; font-family: var(--font-mono); font-size: 0.88em; line-height: 1.6; background: var(--panel); }
+.cm-notes .cm-md-codeblock-first { margin-top: 6px; padding-top: 4px; border-radius: var(--r) var(--r) 0 0; }
+.cm-notes .cm-md-codeblock-last { margin-bottom: 6px; padding-bottom: 4px; border-radius: 0 0 var(--r) var(--r); }
+.cm-notes .cm-md-codehead { display: inline-flex; align-items: center; justify-content: space-between; width: 100%; font-family: var(--font); }
+.cm-notes .cm-md-codelang { font-size: 11.5px; font-weight: 600; letter-spacing: 0.02em; color: var(--faint); cursor: text; }
+.cm-notes .cm-md-codecopy { padding: 0 6px; font: 11.5px var(--font); color: var(--muted); border-radius: var(--r-sm); }
+.cm-notes .cm-md-codecopy:hover { color: var(--fg); background: var(--hover); }
 .cm-notes .cm-md-math { color: var(--fg); cursor: text; }
 .cm-notes .cm-md-math-display { display: block; padding: 6px 0; overflow-x: auto; text-align: center; }
 .cm-notes .cm-md-math-source { font-family: var(--font-mono); font-size: 0.92em; color: var(--syn-math); }

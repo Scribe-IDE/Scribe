@@ -282,6 +282,7 @@ export const gruvbox = HighlightStyle.define([
   { tag: t.emphasis, fontStyle: "italic" },
   { tag: t.strong, fontWeight: "600" },
   { tag: t.link, color: "var(--syn-math)", textDecoration: "underline" },
+  { tag: t.monospace, fontFamily: "var(--font-mono)", fontSize: "0.92em", color: "var(--syn-str)" }, // `code` in notes
   { tag: t.invalid, color: "var(--err)" },
 ]);
 
