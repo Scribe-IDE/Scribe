@@ -58,7 +58,7 @@ export async function openProject(path: string) {
   showWelcome(false);
 
   // Prefer a file that declares \documentclass as the compile root.
-  setMainFile(files.includes("main.tex") ? "main.tex" : files.find((f) => f.endsWith(".tex") && f !== VALUES_TEX) ?? "main.tex");
+  setMainFile(files.includes("main.tex") ? "main.tex" : await findPaper(path, files));
   await loadSettings(); // before the file list is drawn: it holds the saved file order
   // Back to where this project was left; a project opened for the first time starts on its paper.
   const hasPaper = files.some((f) => f.endsWith(".tex"));
@@ -71,6 +71,16 @@ export async function openProject(path: string) {
     else showNoFile();
   }
   refreshIndex().catch(() => {});
+}
+
+/** The .tex file that declares \documentclass (projects from Overleaf often aren't main.tex). */
+async function findPaper(path: string, files: string[]): Promise<string> {
+  const tex = files.filter((f) => f.endsWith(".tex") && f !== VALUES_TEX && !f.startsWith(".")).sort((a, b) => a.split("/").length - b.split("/").length);
+  for (const f of tex.slice(0, 40)) {
+    const text = await invoke<string>("read_file", { root: path, rel: f }).catch(() => "");
+    if (/^[^%\n]*\\documentclass/m.test(text)) return f;
+  }
+  return tex[0] ?? "main.tex";
 }
 
 export async function closeProject() {

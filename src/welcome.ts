@@ -4,7 +4,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { formatKeys, getCommand } from "./commands";
 import { ICONS } from "./icons";
 import { $, appEl, baseName, setStatus, welcomeEl } from "./core";
-import { openPalette } from "./palette";
+import { openPalette, promptInput } from "./palette";
 import { profile } from "./profile";
 import { openProject } from "./project";
 import { TEMPLATES } from "./templates";
@@ -305,7 +305,65 @@ export async function renderSetup() {
   );
 }
 
+/** Bring in a project from elsewhere: an Overleaf download (zip) or a git link. */
+export function importProject() {
+  openPalette({
+    placeholder: "Import a project from…",
+    empty: "",
+    items: [
+      { label: "A .zip file", detail: "From Overleaf: Menu > Download > Source", run: importZip },
+      { label: "A git link", detail: "Overleaf's Git link, GitHub, GitLab…", run: importGit },
+    ],
+  });
+}
+
 // Shown on the welcome screen when that's where the import started, and in the status line.
+function importFailed(e: unknown) {
+  const errEl = $("welcome-error");
+  errEl.textContent = `Couldn't import the project: ${e}`;
+  errEl.hidden = false;
+  setStatus(String(e), "err");
+}
+
+async function chooseParent(): Promise<string | null> {
+  const parent = await open({ directory: true, title: "Choose where to put the project" });
+  return typeof parent === "string" ? parent : null;
+}
+
+async function importZip() {
+  const zip = await open({ title: "Choose the project's .zip", filters: [{ name: "Zip", extensions: ["zip"] }] });
+  if (typeof zip !== "string") return;
+  const parent = await chooseParent();
+  if (!parent) return;
+  setStatus("Unpacking the project…", "busy");
+  try {
+    const path = await invoke<string>("import_zip", { zip, parent });
+    setStatus("");
+    await openProject(path);
+  } catch (e) {
+    importFailed(e);
+  }
+}
+
+function importGit() {
+  promptInput({
+    placeholder: "Git link",
+    hint: "Overleaf: Menu > Git, with a token in the link: https://git:<token>@git.overleaf.com/<id>",
+    submit: async (url) => {
+      const parent = await chooseParent();
+      if (!parent) return;
+      setStatus("Cloning the project…", "busy");
+      try {
+        const path = await invoke<string>("clone_project", { url, parent });
+        setStatus("");
+        await openProject(path);
+      } catch (e) {
+        importFailed(e);
+      }
+    },
+  });
+}
+
 export function renderShortcuts() {
   const list = $("shortcut-list");
   for (const id of ["build.compile", "build.runNotebooks", "view.palette", "view.quickOpen", "edit.findInProject"]) {

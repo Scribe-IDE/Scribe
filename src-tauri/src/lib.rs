@@ -1950,6 +1950,101 @@ fn spell_learn(word: String) {
     spell::learn(&word);
 }
 
+// ---------- importing: an Overleaf download or a git repository ----------
+
+/// `parent/name`, or `parent/name 2`, `parent/name 3`... whichever doesn't exist yet.
+fn free_dir(parent: &Path, name: &str) -> PathBuf {
+    let mut dir = parent.join(name);
+    let mut n = 2;
+    while dir.exists() {
+        dir = parent.join(format!("{name} {n}"));
+        n += 1;
+    }
+    dir
+}
+
+/// Unpacks a project zip (Overleaf: Menu > Download > Source) into a new folder in `parent`
+/// and returns its path. A single folder wrapping everything is unwrapped.
+fn unzip_project(zip_path: &Path, parent: &Path) -> Result<PathBuf, String> {
+    let file = std::fs::File::open(zip_path).map_err(|e| format!("Can't open the zip: {e}"))?;
+    let mut archive = zip::ZipArchive::new(file).map_err(|_| "This isn't a zip file.".to_string())?;
+    let mut names = Vec::new();
+    for i in 0..archive.len() {
+        let entry = archive.by_index(i).map_err(|e| e.to_string())?;
+        // enclosed_name refuses entries like ../../etc/passwd or absolute paths
+        let Some(name) = entry.enclosed_name() else { continue };
+        if name.components().any(|c| c.as_os_str() == "__MACOSX") {
+            continue;
+        }
+        names.push((i, name, entry.is_dir()));
+    }
+    if names.is_empty() {
+        return Err("The zip is empty.".into());
+    }
+    let first = |p: &Path| p.components().next().map(|c| c.as_os_str().to_owned());
+    let top = first(&names[0].1);
+    let wrapped = names.iter().all(|(_, n, dir)| first(n) == top && (n.components().count() > 1 || *dir));
+    let stem = zip_path.file_stem().unwrap_or_default().to_string_lossy().to_string();
+    let dest = free_dir(parent, &stem);
+    std::fs::create_dir_all(&dest).map_err(|e| e.to_string())?;
+    for (i, name, dir) in names {
+        let rel: PathBuf = if wrapped { name.components().skip(1).collect() } else { name };
+        if rel.as_os_str().is_empty() {
+            continue;
+        }
+        let out = dest.join(&rel);
+        if dir {
+            std::fs::create_dir_all(&out).map_err(|e| e.to_string())?;
+            continue;
+        }
+        if let Some(p) = out.parent() {
+            std::fs::create_dir_all(p).map_err(|e| e.to_string())?;
+        }
+        let mut entry = archive.by_index(i).map_err(|e| e.to_string())?;
+        let mut file = std::fs::File::create(&out).map_err(|e| e.to_string())?;
+        std::io::copy(&mut entry, &mut file).map_err(|e| e.to_string())?;
+    }
+    Ok(dest)
+}
+
+#[tauri::command]
+async fn import_zip(zip: String, parent: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || unzip_project(Path::new(&zip), Path::new(&parent)).map(|p| p.to_string_lossy().into_owned()))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+/// Clones a git repository (an Overleaf project's git link, GitHub, ...) into `parent`.
+#[tauri::command]
+async fn clone_project(url: String, parent: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let url = url.trim();
+        if !(url.starts_with("https://") || url.starts_with("git@") || url.starts_with("ssh://")) {
+            return Err("Paste the project's git link, starting with https://".into());
+        }
+        let name = url.trim_end_matches('/').trim_end_matches(".git").rsplit(['/', ':']).next().unwrap_or("project").to_string();
+        let dest = free_dir(Path::new(&parent), if name.is_empty() { "project" } else { &name });
+        let out = Command::new("git")
+            .args(["clone", "--", url])
+            .arg(&dest)
+            .env("GIT_TERMINAL_PROMPT", "0")
+            .output()
+            .map_err(|e| format!("git isn't available: {e}"))?;
+        if !out.status.success() {
+            let err = String::from_utf8_lossy(&out.stderr);
+            let _ = std::fs::remove_dir_all(&dest);
+            return Err(if err.contains("Authentication") || err.contains("could not read Username") || err.contains("403") {
+                "The repository asked for a login. For Overleaf, use a link with a git token: https://git:<token>@git.overleaf.com/<id>".into()
+            } else {
+                format!("git couldn't clone it: {}", err.trim())
+            });
+        }
+        Ok(dest.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 // ---------- submission check: file sizes ----------
 
 #[derive(Serialize)]
@@ -2361,7 +2456,7 @@ pub fn run() {
             git_status, git_branch, git_overview, git_diff, git_commit, git_push, git_init, git_identity, search_project, read_settings, write_settings,
             kernel_start, kernel_run_cell, kernel_stop,
             spell_available, spell_check, spell_suggest, spell_learn, fetch_bibtex, export_bundle, write_binary,
-            history_list, history_read, history_diff,             python_bin, check_tools, pty_start, pty_write, pty_resize, pty_kill,
+            history_list, history_read, history_diff, import_zip, clone_project, file_sizes, zotero_get, install_tectonic,
             python_bin, check_tools, pty_start, pty_write, pty_resize, pty_kill,
             synctex_edit, synctex_view
         ])
@@ -2691,6 +2786,33 @@ mod tests {
         // other files and generated data keep no history
         write_file(root.clone(), "data.csv".into(), "1,2\n".into()).unwrap();
         assert!(history_ids(&root_dir, "data.csv").is_empty());
+        let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn unzips_an_overleaf_download_without_its_wrapper_folder() {
+        use std::io::Write as _;
+        let base = std::env::temp_dir().join(format!("scribe-unzip-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&base);
+        std::fs::create_dir_all(&base).unwrap();
+        let zip_path = base.join("My Paper.zip");
+        {
+            let mut zip = zip::ZipWriter::new(std::fs::File::create(&zip_path).unwrap());
+            let options = zip::write::SimpleFileOptions::default();
+            zip.start_file("My Paper/main.tex", options).unwrap();
+            zip.write_all(b"\\documentclass{article}").unwrap();
+            zip.start_file("My Paper/figs/a.txt", options).unwrap();
+            zip.write_all(b"a").unwrap();
+            zip.start_file("../escape.txt", options).unwrap();
+            zip.write_all(b"no").unwrap();
+            zip.finish().unwrap();
+        }
+        let dest = unzip_project(&zip_path, &base).unwrap();
+        assert_eq!(dest, base.join("My Paper"));
+        assert!(dest.join("main.tex").is_file() && dest.join("figs/a.txt").is_file());
+        assert!(!base.join("escape.txt").exists());
+        // importing again goes into a new folder
+        assert_eq!(unzip_project(&zip_path, &base).unwrap(), base.join("My Paper 2"));
         let _ = std::fs::remove_dir_all(&base);
     }
 

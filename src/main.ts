@@ -32,7 +32,7 @@ import { loadProfile } from "./profile";
 import { renderProblemCount } from "./statusbar";
 import { closeTab, openTabs } from "./tabs";
 import { canRunFile, runFile, shellAlive, showTerminal, stopTerminal, termPanel } from "./terminal";
-import { getRecent, installLatex, newProject, renderRecent, renderSetup, renderShortcuts, setRecent, startTypewriter } from "./welcome";
+import { getRecent, importProject, installLatex, newProject, renderRecent, renderSetup, renderShortcuts, setRecent, startTypewriter } from "./welcome";
 
 // ---------- log ----------
 function toggleLog() {
@@ -99,6 +99,7 @@ register(
   { id: "file.quickNote", group: "File", title: "Quick Note…", keys: "Mod-Alt-n", run: quickNote, enabled: hasProject },
   { id: "file.notePdf", group: "File", title: "Export Note as PDF", run: exportNotePdf, enabled: () => isNote(activeEditor()?.dom.dataset.path) },
   { id: "file.open", group: "File", title: "Open Project…", keys: "Mod-o", run: openFolder },
+  { id: "file.import", group: "File", title: "Import from Overleaf or Git…", run: importProject },
   { id: "file.newProject", group: "File", title: "New Project…", run: newProject },
   { id: "file.save", group: "File", title: "Save", keys: "Mod-s", run: saveFile, enabled: () => !!current && !VIEWABLE.test(current) && !/\.(csv|tsv)$/i.test(current) },
   {
@@ -281,7 +282,7 @@ const MENU_ICON = {
 };
 
 createMenubar($("menubar"), [
-  { title: "File", icon: MENU_ICON.file, entries: ["file.new", "file.newNotebook", "file.newFolder", "file.upload", "-", "file.newNote", "file.todaysNote", "file.quickNote", "file.notePdf", "-", "file.newProject", "file.open", { title: "Open Recent", icon: ICONS.recent, submenu: recentEntries }, "-", "file.save", "file.rename", "file.trash", "-", "file.export", "file.reveal", "-", "file.closeTab", "file.close"] },
+  { title: "File", icon: MENU_ICON.file, entries: ["file.new", "file.newNotebook", "file.newFolder", "file.upload", "-", "file.newNote", "file.todaysNote", "file.quickNote", "file.notePdf", "-", "file.newProject", "file.open", "file.import", { title: "Open Recent", icon: ICONS.recent, submenu: recentEntries }, "-", "file.save", "file.rename", "file.trash", "-", "file.export", "file.reveal", "-", "file.closeTab", "file.close"] },
   { title: "Edit", icon: MENU_ICON.edit, entries: ["edit.undo", "edit.redo", "-", "edit.cut", "edit.copy", "edit.paste", "edit.selectAll", "-", "edit.find", "edit.findInProject", "edit.comment", "-", "edit.cite", "edit.zotero", "edit.copyLatex"] },
   {
     title: "View",
@@ -321,6 +322,7 @@ $("side-add-cite").onclick = addCitation;
 $("tab-notes").onclick = () => showSidebar("notes");
 $("tab-history").onclick = () => showSidebar("history");
 $("side-zotero").onclick = addFromZotero;
+$("welcome-import").onclick = importProject;
 $("tab-review").onclick = () => showSidebar("review");
 $("side-upload").onclick = () => uploadFiles();
 $("tab-git").onclick = () => showSidebar("git");
