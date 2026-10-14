@@ -48,11 +48,7 @@ function focusedField(): TextField | null {
 const editorVisible = () => !!current && !$("editor").hidden;
 
 // The CodeMirror instance edit commands should act on: the main editor, or the active notebook cell.
-function targetView(): EditorView | null {
-  if (sideView?.dom.contains(document.activeElement)) return sideView;
-  if (editorVisible()) return view;
-  return isNotebook() ? cellViews[activeCell] ?? null : null;
-}
+const targetView = activeEditor;
 
 const canEdit = () => !!focusedField() || !!targetView();
 

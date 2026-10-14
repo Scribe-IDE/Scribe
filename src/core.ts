@@ -85,14 +85,14 @@ export function baseName(path: string) {
 }
 
 // ---------- files ----------
-export const EDITABLE = /\.(tex|py|ipynb|bib|sty|cls|txt|md|pdf)$/;
+export const EDITABLE = /\.(tex|py|ipynb|bib|sty|cls|txt|md|pdf|csv|tsv)$/;
 export const NOTEBOOK_SOURCE = /\.(py|ipynb)$/; // files that can hold figure cells
 export const VIEWABLE = /\.(pdf|png|jpe?g|gif|svg)$/i; // opened as a preview, never as text
 export const listed = (f: string) => EDITABLE.test(f) || VIEWABLE.test(f);
 export const GIT_CLASS: Record<string, string> = { M: "mod", A: "add", "?": "new", D: "del" };
 export const GIT_LABEL: Record<string, string> = { M: "Modified", A: "Added", "?": "Untracked", D: "Deleted" };
 
-export const CREATABLE = /\.(tex|py|ipynb|bib|sty|cls|txt|md)$/;
+export const CREATABLE = /\.(tex|py|ipynb|bib|sty|cls|txt|md|csv)$/;
 
 export const parentOf = (rel: string) => (rel.includes("/") ? rel.slice(0, rel.lastIndexOf("/")) : "");
 export const insideProject = (rel: string) => !rel.startsWith("/") && !rel.split("/").some((part) => part === ".." || part === "");

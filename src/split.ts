@@ -3,8 +3,12 @@
 import { EditorView } from "codemirror";
 import { invoke } from "@tauri-apps/api/core";
 import { $, clamp, current, root, setStatus, VIEWABLE } from "./core";
-import { createEditorState, prefEffects } from "./editor";
+import { createEditorState, prefEffects, view } from "./editor";
+import { activeCell, cellViews, isNotebook } from "./notebook";
+import { ICONS } from "./icons";
 import { openFile } from "./project";
+import { saveSessionSoon } from "./session";
+import { FILE_ICON } from "./sidebar";
 
 const pane = $("work-side");
 const handle = $("split-handle");
@@ -17,12 +21,33 @@ export let sideView: EditorView | null = null;
 let sideDirty = false;
 
 export const sideOpen = () => !pane.hidden;
+
+/** The editor that typing-related commands should act on: the side pane if it has the
+ *  keyboard, otherwise the main editor, otherwise the notebook cell last used. */
+export function activeEditor(): EditorView | null {
+  if (sideView?.dom.contains(document.activeElement)) return sideView;
+  if (current && !$("editor").hidden) return view;
+  return isNotebook() ? cellViews[activeCell] ?? null : null;
+}
 /** The side editor has the keyboard, so save and edit commands should act on it. */
 export const sideFocused = () => !!sideView?.hasFocus;
 
+// Same icon and wording as a tab: a file shows its type, anything else (a diff) the git mark.
 function renderTitle(text: string) {
-  titleEl.textContent = text;
-  titleEl.title = text;
+  const icon = document.createElement("span");
+  if (sideFile) {
+    const ext = sideFile.slice(sideFile.lastIndexOf(".") + 1).toLowerCase();
+    icon.className = `file-icon file-${ext in FILE_ICON ? ext : "text"}`;
+    icon.innerHTML = FILE_ICON[ext] ?? FILE_ICON.text;
+  } else {
+    icon.className = "file-icon";
+    icon.innerHTML = ICONS.branch;
+  }
+  const label = document.createElement("span");
+  label.className = "side-label";
+  label.textContent = text;
+  titleEl.replaceChildren(icon, label);
+  titleEl.title = sideFile ? `${text}. Double-click to move it to the main pane.` : text;
   titleEl.classList.toggle("dirty", sideDirty);
 }
 
@@ -56,8 +81,8 @@ export async function closeSide() {
 /** Open a text file in the side pane, for reading or editing beside the main file. */
 export async function openToSide(rel: string) {
   if (!root) return;
-  if (VIEWABLE.test(rel) || rel.endsWith(".ipynb")) {
-    setStatus("Only text files open to the side. Notebooks and previews use the main pane.");
+  if (VIEWABLE.test(rel)) {
+    setStatus("Previews open in the main pane.");
     return;
   }
   if (rel === current) {
@@ -69,6 +94,14 @@ export async function openToSide(rel: string) {
     text = await invoke<string>("read_file", { root, rel });
   } catch (e) {
     setStatus(`Couldn't open ${rel}: ${e}`, "err");
+    return;
+  }
+  // Notebook cells only run in the main pane. To put a notebook beside the paper, the two
+  // trade places: the notebook takes the main pane and the file that was there moves here.
+  if (rel.endsWith(".ipynb") || (rel.endsWith(".py") && /^# %%/m.test(text))) {
+    const beside = current && !VIEWABLE.test(current) && !isNotebook() ? current : null;
+    await openFile(rel);
+    if (beside) await openToSide(beside);
     return;
   }
   await saveSide();

@@ -3,6 +3,7 @@ import { EditorView } from "codemirror";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import * as pdfjs from "pdfjs-dist";
+import { DATA_FILE, showData } from "./data";
 import { clearProblems, markProblemsInEditor } from "./problems";
 import { $, assignDirty, baseName, current, dirty, mainFile, renderCrumb, root, setCurrent, setDirty, setMainFile, setRoot, setStatus, showLog, VIEWABLE } from "./core";
 import { createEditorState, prefEffects, view } from "./editor";
@@ -95,8 +96,10 @@ export async function listFiles(): Promise<string[]> {
 
 // The editor pane shows exactly one of: the text editor, notebook cells, a file preview, or
 // (with no file open) a hint.
-export function setMainView(which: "editor" | "notebook" | "preview" | "none") {
+export function setMainView(which: "editor" | "notebook" | "preview" | "data" | "none") {
   $("no-file").hidden = which !== "none";
+  $("data-view").hidden = which !== "data";
+  if (which !== "data") $("data-view").replaceChildren();
   $("editor").hidden = which !== "editor";
   $("notebook-view").hidden = which !== "notebook";
   $("file-preview").hidden = which !== "preview";
@@ -179,6 +182,18 @@ export async function openFile(rel: string) {
     await dropTabs((tab) => tab === rel);
     return;
   }
+  if (DATA_FILE.test(rel)) {
+    // Data opens as a table and plot; to edit it as text, open it to the side.
+    setCurrent(rel);
+    assignDirty(false);
+    leaveNotebook();
+    noteOpened(rel);
+    renderCrumb();
+    setMainView("data");
+    showData(rel, text);
+    await refreshFiles();
+    return;
+  }
   setCurrent(rel);
   const back = takeStashed(rel, text);
   if (back) {
@@ -212,7 +227,8 @@ export async function revealLine(rel: string, line: number, col = 0) {
 
 export async function save() {
   if (!root || !current) return;
-  if (VIEWABLE.test(current)) return; // a preview has nothing to write, and must never overwrite the file
+  // A preview or a data table has nothing to write, and must never overwrite the file.
+  if (VIEWABLE.test(current) || DATA_FILE.test(current)) return;
   if (isNotebook()) {
     await saveNotebook();
   } else {

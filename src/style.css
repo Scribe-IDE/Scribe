@@ -45,6 +45,9 @@
   --syn-math: #83a598;
   --syn-meta: #8ec07c;
 
+  /* single-series chart colour: checked against this surface for lightness and contrast */
+  --chart-1: #b5832c;
+
   --r-sm: 4px;
   --r:    6px;
   --r-lg: 8px;
@@ -783,6 +786,7 @@ body.resizing #layout > :not(.splitter) { pointer-events: none; }
 .file-icon.file-cls { color: var(--syn-math); }
 .file-icon.file-pdf { color: var(--err); }
 .file-icon.file-ipynb { color: var(--syn-cmd); }
+.file-icon.file-csv, .file-icon.file-tsv { color: var(--syn-meta); }
 .file-icon.file-image { color: var(--syn-math); }
 
 #files .item .name {
@@ -1172,6 +1176,61 @@ body.resizing #layout > :not(.splitter) { pointer-events: none; }
   background: #fff;
   border-radius: 2px;
 }
+
+/* ── data files: table and quick plot ── */
+#data-view { display: flex; flex: 1; flex-direction: column; min-height: 0; overflow: auto; }
+
+.data-bar, .data-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  padding: 8px 14px 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.data-bar .btn { height: 26px; font-size: 12px; }
+.data-info { margin-right: auto; font-variant-numeric: tabular-nums; }
+.data-controls label { display: inline-flex; align-items: center; gap: 6px; }
+.data-controls select { height: 24px; font-size: 12px; }
+
+.data-plot { position: relative; flex-shrink: 0; padding: 4px 14px 0; }
+.plot-caption { padding: 6px 0 2px; font-size: 12px; font-weight: 500; color: var(--fg-dim); }
+.plot-grid { stroke: var(--border); stroke-width: 1; }
+.plot-tick { fill: var(--muted); font: 11px var(--font); font-variant-numeric: tabular-nums; }
+.plot-line { fill: none; stroke: var(--chart-1); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.plot-dot { fill: var(--chart-1); stroke: var(--bg); stroke-width: 2; }
+.plot-cross { stroke: var(--border-hi); stroke-width: 1; }
+.plot-marker { fill: var(--chart-1); stroke: var(--bg); stroke-width: 2; }
+
+.plot-tip {
+  position: absolute;
+  z-index: 2;
+  padding: 5px 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--fg-dim);
+  background: var(--raised);
+  border: 1px solid var(--border-hi);
+  border-radius: var(--r);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.plot-tip strong { font-weight: 600; color: var(--fg); font-variant-numeric: tabular-nums; }
+.plot-tip-at { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.data-table-wrap { flex: 1; min-height: 120px; margin-top: 10px; overflow: auto; border-top: 1px solid var(--border); }
+.data-table { border-collapse: collapse; font-size: 12.5px; white-space: nowrap; }
+.data-table th { position: sticky; top: 0; padding: 0; background: var(--panel); border-bottom: 1px solid var(--border); text-align: left; z-index: 1; }
+.data-table th button { width: 100%; padding: 6px 12px; font-weight: 600; color: var(--fg-dim); text-align: inherit; }
+.data-table th button:hover { color: var(--fg); background: var(--hover); }
+.data-table th[aria-sort="ascending"] button::after { content: " ↑"; color: var(--faint); }
+.data-table th[aria-sort="descending"] button::after { content: " ↓"; color: var(--faint); }
+.data-table td { padding: 4px 12px; color: var(--fg-dim); border-bottom: 1px solid var(--border); user-select: text; -webkit-user-select: text; }
+.data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.data-table tbody tr:hover td { background: var(--line-hl); }
 
 /* ── notebook cells ── */
 .notebook-view {

@@ -16,6 +16,7 @@ const KIND: Record<string, string> = {
 function fileKind(): string {
   if (!current) return "";
   if (VIEWABLE.test(current)) return "Preview";
+  if (/\.(csv|tsv)$/i.test(current)) return "Data";
   if (current.endsWith(".ipynb")) return "Jupyter notebook";
   if (current.endsWith(".py")) return notebookMode ? "Python notebook" : "Python";
   return KIND[current.slice(current.lastIndexOf(".") + 1)] ?? "Plain text";
