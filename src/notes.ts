@@ -18,6 +18,7 @@ import { renderPdf } from "./preview";
 import { setProblems } from "./problems";
 import { listFiles, openFile, revealLine } from "./project";
 import { readAtPage } from "./reader";
+import { dueCount, reviewCards } from "./cards";
 import { showSidebar } from "./sidebar";
 import { activeEditor } from "./split";
 import { index } from "./texindex";
@@ -257,6 +258,11 @@ function decorate(state: EditorState, path: string): DecorationSet {
       out.push(hashMark.range(line.from, line.from + heading[1].length + 1));
     }
     if (/^>\s?/.test(line.text)) out.push(Decoration.line({ class: "cm-md-quote" }).range(line.from));
+    const card = /^(\s*(?:[-*]\s+)?)([QA]):/.exec(line.text);
+    if (card) {
+      const at = line.from + card[1].length;
+      out.push(mark(`cm-md-card cm-md-card-${card[2].toLowerCase()}`).range(at, at + 2));
+    }
     const check = /^(\s*[-*+]\s)\[( |x|X)\]/.exec(line.text);
     if (check && notePrefs.live) {
       const from = line.from + check[1].length;
@@ -912,6 +918,16 @@ export async function renderNotes() {
     button("Quick note", "Jot something into the inbox (⌥⌘N)", quickNote),
   );
   if (isNote(current)) tools.append(button("PDF", "Typeset this note as a PDF", exportNotePdf));
+  // Revision: how many cards are waiting, from the Q: / A: lines in the notes shown
+  const review = button("Review", "Review the cards that are due (Q: and A: lines in notes)", () => reviewCards(activeTag ? tags.get(activeTag) : undefined));
+  review.hidden = true;
+  tools.append(review);
+  dueCount().then(({ due, total }) => {
+    if (!total) return;
+    review.hidden = false;
+    review.textContent = due ? `Review ${due}` : "Review";
+    review.classList.toggle("btn-primary", due > 0);
+  }).catch(() => {});
 
   const search = document.createElement("input");
   search.className = "notes-filter";
@@ -1040,6 +1056,7 @@ export async function renderNotes() {
     ["@", "cite a reference"],
     ["#word", "a tag, to find notes together"],
     ["**Definition** …", "listed under Definitions and theorems"],
+    ["Q: … / A: …", "a revision card; Review asks you the due ones"],
     ["⌘V", "paste a screenshot or photo of the board"],
   ];
   for (const [keys, what] of shortcuts) {

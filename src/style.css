@@ -2222,3 +2222,31 @@ body.dragging-file #files * { cursor: grabbing; }
 .reader-highlight { position: fixed; z-index: 30; height: 28px; padding: 0 12px; font-size: 12.5px; animation: pop-in 140ms cubic-bezier(.16, 1, .3, 1); }
 .ref-row .icon-btn.has-pdf { color: var(--accent); }
 
+/* ── revision cards ── */
+.cm-notes .cm-md-card { padding: 0 5px; margin-right: 2px; font: 600 0.78em var(--font); letter-spacing: 0.04em; border-radius: var(--r-sm); }
+.cm-notes .cm-md-card-q { color: var(--on-accent); background: var(--accent); }
+.cm-notes .cm-md-card-a { color: var(--fg); background: var(--active); }
+#review {
+  width: min(560px, calc(100vw - 48px));
+  margin: auto;
+  padding: 18px 24px 22px;
+  color: var(--fg);
+  background: var(--raised);
+  border: 1px solid var(--border-hi);
+  border-radius: 14px;
+  animation: pop-in 180ms cubic-bezier(.16, 1, .3, 1);
+}
+#review::backdrop { background: rgba(0, 0, 0, .55); }
+.review-head { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.review-head .icon-btn { margin-left: auto; }
+.review-card { margin-top: 18px; font-size: 17px; line-height: 1.6; text-wrap: pretty; }
+.review-card p + p { margin-top: 8px; }
+.review-answer { padding-top: 16px; color: var(--fg-dim); border-top: 1px solid var(--border); }
+.review-show { display: flex; margin: 24px auto 0; }
+.review-grades { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 24px; }
+.review-grades .btn { flex-direction: column; height: auto; padding: 8px 0; gap: 2px; }
+.review-when { font-size: 11px; color: var(--faint); }
+#review kbd { margin-left: 6px; font-size: 10.5px; opacity: .7; }
+.review-grades kbd { margin: 2px 0 0; }
+
+/* ── sketching ── */

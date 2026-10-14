@@ -268,6 +268,23 @@
     <label class="profile-field"><span>Affiliation</span><input id="profile-affiliation" type="text" autocomplete="off" placeholder="University or company" /></label>
   </div>
 
+  <dialog id="review" aria-label="Review cards">
+    <header class="review-head">
+      <span id="review-count"></span>
+      <span id="review-where"></span>
+      <button id="review-close" class="icon-btn" aria-label="Stop reviewing"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+    </header>
+    <div id="review-question" class="review-card"></div>
+    <div id="review-answer" class="review-card review-answer" hidden></div>
+    <button id="review-show" class="btn btn-primary review-show">Show answer <kbd>Space</kbd></button>
+    <div id="review-grades" class="review-grades" hidden>
+      <button class="btn" data-grade="0">Again<span class="review-when"></span><kbd>1</kbd></button>
+      <button class="btn" data-grade="1">Hard<span class="review-when"></span><kbd>2</kbd></button>
+      <button class="btn" data-grade="2">Good<span class="review-when"></span><kbd>3</kbd></button>
+      <button class="btn" data-grade="3">Easy<span class="review-when"></span><kbd>4</kbd></button>
+    </div>
+  </dialog>
+
   <dialog id="about" aria-labelledby="about-name">
     <div class="about-body" tabindex="-1" autofocus>
       <header class="about-head">
