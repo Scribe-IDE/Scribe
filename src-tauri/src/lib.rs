@@ -1995,6 +1995,102 @@ async fn zotero_get(path: String) -> Result<String, String> {
     .map_err(|e| e.to_string())?
 }
 
+// ---------- installing LaTeX: Tectonic, downloaded into Scribe's own folder ----------
+
+/// Where Scribe keeps tools it installed itself. It goes at the front of PATH at startup.
+fn tools_dir() -> PathBuf {
+    let home = std::env::var("HOME").unwrap_or_default();
+    if cfg!(target_os = "macos") {
+        PathBuf::from(home).join("Library/Application Support/com.georgekiritsis.scribe/bin")
+    } else if cfg!(windows) {
+        PathBuf::from(std::env::var("LOCALAPPDATA").unwrap_or_default()).join("Scribe").join("bin")
+    } else {
+        let data = std::env::var("XDG_DATA_HOME").map(PathBuf::from).unwrap_or_else(|_| PathBuf::from(home).join(".local/share"));
+        data.join("scribe").join("bin")
+    }
+}
+
+fn add_tools_dir_to_path() {
+    let dir = tools_dir().to_string_lossy().into_owned();
+    let path = std::env::var("PATH").unwrap_or_default();
+    let sep = if cfg!(windows) { ";" } else { ":" };
+    if !path.split(sep).any(|p| p == dir) {
+        std::env::set_var("PATH", format!("{dir}{sep}{path}"));
+    }
+}
+
+/// The part of a Tectonic release asset's name that matches this computer.
+fn tectonic_target() -> Option<&'static str> {
+    match (std::env::consts::OS, std::env::consts::ARCH) {
+        ("macos", "aarch64") => Some("aarch64-apple-darwin"),
+        ("macos", "x86_64") => Some("x86_64-apple-darwin"),
+        ("linux", "x86_64") => Some("x86_64-unknown-linux-musl"),
+        ("linux", "aarch64") => Some("aarch64-unknown-linux-musl"),
+        ("windows", "x86_64") => Some("x86_64-pc-windows-msvc"),
+        _ => None,
+    }
+}
+
+/// The download link for this computer's build, from the newest release that has one.
+fn tectonic_asset(releases_json: &str, target: &str) -> Option<(String, String)> {
+    let releases: serde_json::Value = serde_json::from_str(releases_json).ok()?;
+    for release in releases.as_array()? {
+        if release["draft"].as_bool() == Some(true) || release["prerelease"].as_bool() == Some(true) {
+            continue;
+        }
+        for asset in release["assets"].as_array().into_iter().flatten() {
+            let name = asset["name"].as_str().unwrap_or_default();
+            if name.starts_with("tectonic-") && name.contains(target) && (name.ends_with(".tar.gz") || name.ends_with(".zip")) {
+                return Some((name.to_string(), asset["browser_download_url"].as_str()?.to_string()));
+            }
+        }
+    }
+    None
+}
+
+fn install_tectonic_into(dir: &Path) -> Result<String, String> {
+    let target = tectonic_target().ok_or("Tectonic has no ready-made build for this computer. Install TeX Live instead.")?;
+    let releases = http_get("https://api.github.com/repos/tectonic-typesetting/tectonic/releases?per_page=30", Some("application/vnd.github+json"))?;
+    let (name, url) = tectonic_asset(&releases, target).ok_or("Couldn't find a Tectonic download for this computer.")?;
+    std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    let archive = dir.join(&name);
+    let out = Command::new("curl")
+        .args(["-sfL", "--max-time", "300", "-o"])
+        .arg(&archive)
+        .arg(&url)
+        .output()
+        .map_err(|e| e.to_string())?;
+    if !out.status.success() {
+        let _ = std::fs::remove_file(&archive);
+        return Err("The download failed. Check the internet connection and try again.".into());
+    }
+    // tar unpacks .tar.gz everywhere, and .zip too on Windows 10 and later
+    let out = Command::new("tar").arg("-xf").arg(&archive).arg("-C").arg(dir).output().map_err(|e| e.to_string())?;
+    let _ = std::fs::remove_file(&archive);
+    if !out.status.success() {
+        return Err(format!("Couldn't unpack Tectonic: {}", String::from_utf8_lossy(&out.stderr).trim()));
+    }
+    let bin = dir.join(if cfg!(windows) { "tectonic.exe" } else { "tectonic" });
+    let version = Command::new(&bin).arg("--version").output().map_err(|e| format!("Tectonic was downloaded but won't start: {e}"))?;
+    if !version.status.success() {
+        return Err("Tectonic was downloaded but won't start.".into());
+    }
+    Ok(String::from_utf8_lossy(&version.stdout).trim().to_string())
+}
+
+/// Downloads Tectonic (about 20 MB) so papers compile without a TeX distribution. It fetches
+/// the LaTeX packages a paper needs the first time it compiles.
+#[tauri::command]
+async fn install_tectonic() -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let version = install_tectonic_into(&tools_dir())?;
+        add_tools_dir_to_path();
+        Ok(version)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 // ---------- environment ----------
 
 /// The PATH from the user's login shell. Apps launched from Finder or the Dock inherit only a
@@ -2219,6 +2315,7 @@ fn pty_kill() -> Result<(), String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     adopt_shell_path();
+    add_tools_dir_to_path();
     // `scribe --check-tools` prints what the app can find, without opening a window: the quickest
     // way to see why compiling or notebooks don't work on a machine.
     if std::env::args().any(|a| a == "--check-tools") {
@@ -2595,6 +2692,29 @@ mod tests {
         write_file(root.clone(), "data.csv".into(), "1,2\n".into()).unwrap();
         assert!(history_ids(&root_dir, "data.csv").is_empty());
         let _ = std::fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn picks_the_tectonic_build_for_this_computer() {
+        let releases = r#"[
+          {"draft": false, "prerelease": true, "assets": [{"name": "tectonic-9.9-aarch64-apple-darwin.tar.gz", "browser_download_url": "pre"}]},
+          {"draft": false, "prerelease": false, "assets": [
+            {"name": "tectonic-0.17.0-x86_64-apple-darwin.tar.gz", "browser_download_url": "intel"},
+            {"name": "tectonic-0.17.0-aarch64-apple-darwin.tar.gz", "browser_download_url": "arm"}
+          ]}
+        ]"#;
+        assert_eq!(tectonic_asset(releases, "aarch64-apple-darwin").unwrap().1, "arm");
+        assert!(tectonic_asset(releases, "riscv").is_none());
+    }
+
+    /// Downloads the real thing: `cargo test -- --ignored installs_tectonic`
+    #[test]
+    #[ignore]
+    fn installs_tectonic() {
+        let dir = std::env::temp_dir().join(format!("scribe-tectonic-{}", std::process::id()));
+        let version = install_tectonic_into(&dir).unwrap();
+        assert!(version.to_lowercase().starts_with("tectonic"), "{version}");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

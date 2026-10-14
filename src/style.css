@@ -2053,6 +2053,7 @@ body.dragging-file #files * { cursor: grabbing; }
 .setup .missing .row-icon { color: var(--accent); }
 .setup .setup-name { font-weight: 500; color: var(--fg); }
 .setup .setup-detail { margin-left: auto; font-size: 12px; color: var(--faint); }
+.setup .setup-install { height: 26px; margin-left: 24px; padding: 0 10px; font-size: 12.5px; }
 .setup .missing .setup-detail { flex-basis: 100%; margin-left: 24px; color: var(--muted); line-height: 1.5; }
 
 .shortcuts li { color: var(--fg-dim); }

@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { formatKeys, getCommand } from "./commands";
 import { ICONS } from "./icons";
-import { $, appEl, baseName, welcomeEl } from "./core";
+import { $, appEl, baseName, setStatus, welcomeEl } from "./core";
 import { openPalette } from "./palette";
 import { profile } from "./profile";
 import { openProject } from "./project";
@@ -252,6 +252,39 @@ export function setupRow(ok: boolean, name: string, detail: string): HTMLElement
   return li;
 }
 
+// No LaTeX: one click installs Tectonic, instead of a page of instructions.
+function installRow(): HTMLElement {
+  const li = setupRow(false, "LaTeX not found", "Scribe can install Tectonic (about 20 MB) for you, or install TeX Live yourself.");
+  const button = document.createElement("button");
+  button.className = "btn btn-outline setup-install";
+  button.textContent = "Install LaTeX";
+  button.onclick = () => installLatex();
+  li.appendChild(button);
+  return li;
+}
+
+let installing = false;
+
+/** Download Tectonic into Scribe's own folder; afterwards papers compile with no TeX installed. */
+export async function installLatex() {
+  if (installing) return;
+  installing = true;
+  setStatus("Downloading Tectonic (about 20 MB)…", "busy");
+  for (const b of document.querySelectorAll<HTMLButtonElement>(".setup-install")) {
+    b.disabled = true;
+    b.textContent = "Installing…";
+  }
+  try {
+    const version = await invoke<string>("install_tectonic");
+    setStatus(`Installed ${version}. The first compile downloads the LaTeX packages the paper uses, so it takes a minute.`, "ok");
+  } catch (e) {
+    setStatus(String(e), "err");
+  } finally {
+    installing = false;
+    renderSetup();
+  }
+}
+
 // Says up front whether compiling and notebooks will work on this machine.
 export async function renderSetup() {
   const list = $("setup-list");
@@ -265,7 +298,7 @@ export async function renderSetup() {
   list.replaceChildren(
     tools.tex
       ? setupRow(true, "LaTeX", tools.tex)
-      : setupRow(false, "LaTeX not found", "Install Tectonic (cargo install tectonic) or TeX Live to compile papers."),
+      : installRow(),
     tools.python
       ? setupRow(true, "Python", tools.python)
       : setupRow(false, "Python not found", "Install Python 3 to run notebooks and produce figures."),

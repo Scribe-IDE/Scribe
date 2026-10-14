@@ -1,8 +1,10 @@
 // Running notebooks and compiling the paper.
 import { invoke } from "@tauri-apps/api/core";
+import { ask } from "@tauri-apps/plugin-dialog";
 import { $, current, mainFile, NOTEBOOK_SOURCE, root, setStatus, showLog, VIEWABLE } from "./core";
 import { parseLog } from "./diagnostics";
 import { renderPdf } from "./preview";
+import { installLatex } from "./welcome";
 import { problemSummary, setProblems } from "./problems";
 import { listFiles, save } from "./project";
 import { settings } from "./settings";
@@ -112,6 +114,14 @@ export async function compile() {
   } catch (e) {
     showLog("Compile log", String(e));
     setStatus("Couldn't compile", "err");
+    // No TeX at all: offer to install it rather than leave the user with an error.
+    if (String(e).includes("No TeX engine")) {
+      const yes = await ask("Scribe needs LaTeX to compile papers, and none was found on this computer.\n\nInstall Tectonic now? It is about 20 MB, and fetches the packages a paper needs as it compiles.", {
+        title: "Install LaTeX",
+        okLabel: "Install",
+      });
+      if (yes) await installLatex();
+    }
   } finally {
     refreshIndexSoon(); // notebooks may have produced new figures or values
     $("pdf-pane").classList.remove("busy");

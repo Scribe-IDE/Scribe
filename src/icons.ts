@@ -88,6 +88,7 @@ export const COMMAND_ICONS: Record<string, string> = {
   "view.history": icon('<circle cx="8" cy="8" r="5.75"/><path d="M8 4.75V8l2.25 1.5"/>'),
   "edit.zotero": icon('<path d="M4 3.25h8L4 12.75h8"/>'),
   "build.check": icon('<path d="M3 8.5l3 3 7-7"/>'),
+  "build.installLatex": icon('<path d="M8 2.75v7.5M5 7.25l3 3 3-3"/><path d="M2.75 10.5v1.75a1 1 0 001 1h8.5a1 1 0 001-1V10.5"/>'),
   "file.notePdf": icon('<path d="M9 2.25H4.5a1 1 0 00-1 1v9.5a1 1 0 001 1h7a1 1 0 001-1V5.75z"/><path d="M9 2.25v3.5h3.5M6 9.5h4M6 11.5h2.5"/>'),
   "view.notes": icon('<path d="M10.5 2.25H4.25a1 1 0 00-1 1v9.5a1 1 0 001 1h7.5a1 1 0 001-1V7"/><path d="M5.75 6.5h3M5.75 9h4.5M12.6 1.9l1.5 1.5-4.35 4.35-2 .5.5-2z"/>'),
   "file.newNote": icon('<path d="M10.5 2.25H4.25a1 1 0 00-1 1v9.5a1 1 0 001 1h7.5a1 1 0 001-1V7"/><path d="M5.75 6.5h3M5.75 9h4.5M12.6 1.9l1.5 1.5-4.35 4.35-2 .5.5-2z"/>'),
