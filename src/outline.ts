@@ -9,7 +9,22 @@ import { OutlineItem, scanOutline } from "./texindex";
 interface Entry extends OutlineItem { file: string; }
 
 const panel = $("outline-panel");
+const toggle = $("outline-toggle");
+const OPEN_KEY = "scribe.outline";
 let job = 0;
+
+/** Drawn only while it can be seen: the file tree is showing and the section is expanded. */
+const visible = () => !panel.hidden && !$("files-panel").hidden;
+
+export function showOutline(open: boolean) {
+  panel.hidden = !open;
+  toggle.setAttribute("aria-expanded", String(open));
+  $("file-outline").classList.toggle("collapsed", !open);
+  try { localStorage.setItem(OPEN_KEY, open ? "1" : "0"); } catch {}
+  if (open) renderOutline();
+}
+
+toggle.onclick = () => showOutline(panel.hidden);
 
 // The open file's text comes from the editor, so the outline tracks unsaved edits.
 async function textOf(rel: string): Promise<string> {
@@ -33,7 +48,7 @@ async function collect(rel: string, depth: number, seen: Set<string>): Promise<E
 }
 
 export async function renderOutline() {
-  if (panel.hidden || !root) return;
+  if (!visible() || !root) return;
   const mine = ++job;
   // The paper as a whole when there is one; otherwise whatever .tex file is open.
   const start = mainFile && (await textOf(mainFile)) ? mainFile : current?.endsWith(".tex") ? current : null;
@@ -78,7 +93,7 @@ let timer: number | null = null;
 
 /** The paper may have changed: redraw once typing pauses (no-op while the panel is hidden). */
 export function outlineChanged() {
-  if (panel.hidden) return;
+  if (!visible()) return;
   if (timer) clearTimeout(timer);
   timer = window.setTimeout(() => {
     renderOutline().catch(() => {});
@@ -86,3 +101,8 @@ export function outlineChanged() {
 }
 
 changeListeners.push(outlineChanged);
+
+// Collapsed stays collapsed between launches.
+try {
+  if (localStorage.getItem(OPEN_KEY) === "0") showOutline(false);
+} catch {}

@@ -70,26 +70,45 @@
 
     <main id="layout">
       <aside id="sidebar">
-        <div class="side-tabs" role="tablist">
-          <button id="tab-files" role="tab" aria-selected="true" aria-controls="files" title="Files" aria-label="Files"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 4.5V2.75a.5.5 0 01.5-.5h4.25L13 5v6.75a.5.5 0 01-.5.5h-2"/><path d="M3 5a.5.5 0 01.5-.5h4.25L10.5 7.25v6a.5.5 0 01-.5.5H3.5a.5.5 0 01-.5-.5V5z"/></svg></button>
-          <button id="tab-search" role="tab" aria-selected="false" aria-controls="search-panel" title="Search project (⇧⌘F)" aria-label="Search"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="7" r="4.25"/><path d="M10.25 10.25L13.5 13.5"/></svg></button>
-          <button id="tab-outline" role="tab" aria-selected="false" aria-controls="outline-panel" title="Outline of the paper" aria-label="Outline"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 3.5h11M5 6.5h8.5M5 9.5h8.5M7.5 12.5h6"/></svg></button>
-          <button id="tab-figures" role="tab" aria-selected="false" aria-controls="figures-panel" title="Figures and values from the notebooks" aria-label="Figures"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2.75" width="12" height="10.5" rx="1.5"/><path d="M4.5 10.5l2.25-2.5 1.75 1.75 1.5-1.5 1.5 2.25"/></svg></button>
-          <button id="tab-git" role="tab" aria-selected="false" aria-controls="git-panel" title="Git: changes, commit, history" aria-label="Git"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="4.5" cy="3.75" r="1.5"/><circle cx="4.5" cy="12.25" r="1.5"/><circle cx="11.5" cy="5.75" r="1.5"/><path d="M4.5 5.25v5.5M11.5 7.25c0 2.25-2.25 2.5-4 2.75-1.5.2-3 .5-3 1"/></svg></button>
-          <button id="side-new" class="icon-btn" title="New file" aria-label="New file">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2.25H4.5a.5.5 0 00-.5.5v10.5a.5.5 0 00.5.5h7a.5.5 0 00.5-.5V8.5"/><path d="M12 2v4M10 4h4"/></svg>
-          </button>
-          <button id="side-new-folder" class="icon-btn" title="New folder" aria-label="New folder">
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 8.5V5.75a1 1 0 00-1-1H7.5L6 3.25H3a1 1 0 00-1 1v7.5a1 1 0 001 1h5"/><path d="M12 10v4M10 12h4"/></svg>
-          </button>
-        </div>
-        <div id="files" role="tabpanel"></div>
-        <div id="figures-panel" role="tabpanel" hidden></div>
-        <div id="outline-panel" role="tabpanel" hidden></div>
-        <div id="git-panel" role="tabpanel" hidden></div>
-        <div id="search-panel" role="tabpanel" hidden>
-          <input id="search-input" type="text" placeholder="Search in project" aria-label="Search in project" spellcheck="false" autocomplete="off" />
-          <div id="search-results" class="search-results"></div>
+        <nav class="side-rail" role="tablist" aria-orientation="vertical" aria-label="Panels">
+          <button id="tab-files" role="tab" aria-selected="true" aria-controls="files-panel" title="File tree" aria-label="File tree"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5.5 4.5V2.75a.5.5 0 01.5-.5h4.25L13 5v6.75a.5.5 0 01-.5.5h-2"/><path d="M3 5a.5.5 0 01.5-.5h4.25L10.5 7.25v6a.5.5 0 01-.5.5H3.5a.5.5 0 01-.5-.5V5z"/></svg></button>
+          <button id="tab-search" role="tab" aria-selected="false" aria-controls="search-panel" title="Search (⇧⌘F)" aria-label="Search"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="7" r="4.25"/><path d="M10.25 10.25L13.5 13.5"/></svg></button>
+          <button id="tab-figures" role="tab" aria-selected="false" aria-controls="figures-panel" title="Figures and values" aria-label="Figures and values"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2.75" width="12" height="10.5" rx="1.5"/><path d="M4.5 10.5l2.25-2.5 1.75 1.75 1.5-1.5 1.5 2.25"/></svg></button>
+          <button id="tab-git" role="tab" aria-selected="false" aria-controls="git-panel" title="Git" aria-label="Git"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="4.5" cy="3.75" r="1.5"/><circle cx="4.5" cy="12.25" r="1.5"/><circle cx="11.5" cy="5.75" r="1.5"/><path d="M4.5 5.25v5.5M11.5 7.25c0 2.25-2.25 2.5-4 2.75-1.5.2-3 .5-3 1"/></svg></button>
+          <button id="tab-references" role="tab" aria-selected="false" aria-controls="references-panel" title="References" aria-label="References"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.25 2.5h7.5a1.5 1.5 0 011.5 1.5v9.5H4.75a1.5 1.5 0 01-1.5-1.5V2.5z"/><path d="M3.25 12a1.5 1.5 0 011.5-1.5h7.5M6 5.5h3.5"/></svg></button>
+          <button id="tab-symbols" role="tab" aria-selected="false" aria-controls="symbols-panel" title="Symbols" aria-label="Symbols"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.5V3H4l4 5-4 5h8v-1.5"/></svg></button>
+          <button id="tab-review" role="tab" aria-selected="false" aria-controls="review-panel" title="Review" aria-label="Review"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.75 4.25L4 5.5l2-2.25M2.75 10.25L4 11.5l2-2.25M8.5 4.5h5M8.5 10.5h5"/></svg></button>
+        </nav>
+        <div class="side-body">
+          <div class="side-head">
+            <h2 id="side-name">File tree</h2>
+            <span class="side-actions">
+              <button id="side-new" class="icon-btn" title="New file" aria-label="New file"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 2.25H4.5a.5.5 0 00-.5.5v10.5a.5.5 0 00.5.5h7a.5.5 0 00.5-.5V8.5"/><path d="M12 2v4M10 4h4"/></svg></button>
+              <button id="side-new-folder" class="icon-btn" title="New folder" aria-label="New folder"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 8.5V5.75a1 1 0 00-1-1H7.5L6 3.25H3a1 1 0 00-1 1v7.5a1 1 0 001 1h5"/><path d="M12 10v4M10 12h4"/></svg></button>
+              <button id="side-upload" class="icon-btn" title="Upload files into the project" aria-label="Upload files"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 10.5V2.75M5 5.5l3-3 3 3"/><path d="M2.75 10v2.25a1 1 0 001 1h8.5a1 1 0 001-1V10"/></svg></button>
+              <button id="side-add-cite" class="icon-btn" title="Add a reference from a DOI or an arXiv ID (⇧⌘C)" aria-label="Add a reference" hidden><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3.25v9.5M3.25 8h9.5"/></svg></button>
+              <button id="side-refresh" class="icon-btn" title="Refresh" aria-label="Refresh" hidden><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 8a5 5 0 11-1.75-3.8"/><path d="M13 2.5v3h-3"/></svg></button>
+            </span>
+          </div>
+          <div id="files-panel" role="tabpanel">
+            <div id="files"></div>
+            <section id="file-outline">
+              <button id="outline-toggle" class="outline-head" aria-expanded="true" aria-controls="outline-panel">
+                <svg class="chevron" width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 4.5L10 8l-3.5 3.5"/></svg>
+                File outline
+              </button>
+              <div id="outline-panel"></div>
+            </section>
+          </div>
+          <div id="search-panel" role="tabpanel" hidden>
+            <input id="search-input" type="text" placeholder="Search in project" aria-label="Search in project" spellcheck="false" autocomplete="off" />
+            <div id="search-results" class="search-results"></div>
+          </div>
+          <div id="figures-panel" role="tabpanel" hidden></div>
+          <div id="git-panel" role="tabpanel" hidden></div>
+          <div id="references-panel" role="tabpanel" hidden></div>
+          <div id="symbols-panel" role="tabpanel" hidden></div>
+          <div id="review-panel" role="tabpanel" hidden></div>
         </div>
       </aside>
       <div class="splitter" data-split="sidebar" role="separator" aria-orientation="vertical" aria-label="Resize sidebar" tabindex="0"></div>
@@ -184,17 +203,19 @@
   </div>
 
   <div id="settings-popover" role="dialog" aria-label="Settings" hidden>
+    <h3 class="settings-group">Appearance</h3>
     <label class="settings-row">
       <span>Theme</span>
       <select id="setting-theme"><option value="dark">Dark</option><option value="light">Light</option></select>
     </label>
     <label class="settings-row">
-      <span>Editor font size</span>
-      <select id="setting-fontsize"></select>
+      <span>Density</span>
+      <select id="setting-density"><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select>
     </label>
+    <h3 class="settings-group">Editor</h3>
     <label class="settings-row">
-      <span>Vim keys</span>
-      <input id="setting-vim" type="checkbox" />
+      <span>Font size</span>
+      <select id="setting-fontsize"></select>
     </label>
     <label class="settings-row">
       <span>Line numbers</span>
@@ -204,17 +225,43 @@
     </label>
     <label class="settings-row">
       <span>Line numbers in cells</span>
-      <input id="setting-cell-numbers" type="checkbox" />
+      <input id="setting-cell-numbers" type="checkbox" role="switch" />
+    </label>
+    <label class="settings-row">
+      <span>Vim keys</span>
+      <input id="setting-vim" type="checkbox" role="switch" />
+    </label>
+    <label class="settings-row">
+      <span>Maths preview</span>
+      <input id="setting-math" type="checkbox" role="switch" />
     </label>
     <label class="settings-row">
       <span>Spell check</span>
-      <input id="setting-spell" type="checkbox" />
+      <input id="setting-spell" type="checkbox" role="switch" />
     </label>
+    <h3 class="settings-group">Build</h3>
     <label class="settings-row">
       <span>Compile on save</span>
-      <input id="setting-compile-on-save" type="checkbox" />
+      <input id="setting-compile-on-save" type="checkbox" role="switch" />
     </label>
   </div>
+
+  <div id="profile-popover" role="dialog" aria-label="Profile" hidden>
+    <p class="profile-note">Kept on this computer. Signs new papers and the commits you make in Scribe.</p>
+    <label class="profile-field"><span>Name</span><input id="profile-name" type="text" autocomplete="off" spellcheck="false" /></label>
+    <label class="profile-field"><span>Email</span><input id="profile-email" type="text" autocomplete="off" spellcheck="false" /></label>
+    <label class="profile-field"><span>Affiliation</span><input id="profile-affiliation" type="text" autocomplete="off" placeholder="University or company" /></label>
+  </div>
+
+  <dialog id="about" aria-labelledby="about-name">
+    <img id="about-icon" alt="" width="72" height="72" />
+    <h2 id="about-name">Scribe</h2>
+    <p class="about-version">Version 0.1.0</p>
+    <p>I wrote Scribe after finishing my thesis. While writing the papers that followed, I found that the tools available didn't suit the way I work, so I decided to build my own.</p>
+    <p class="about-promise">It is free for everyone, forever.</p>
+    <p class="about-sign">Georgios Kiritsis</p>
+    <button id="about-close" class="btn btn-outline">Close</button>
+  </dialog>
 
   <script type="module" src="/src/main.ts"></script>
 </body>

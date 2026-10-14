@@ -93,7 +93,7 @@ register(
   { id: "file.trash", group: "File", title: "Move to Trash", run: () => deleteEntry(current!, false), enabled: hasFile },
   { id: "file.open", group: "File", title: "Open Project…", keys: "Mod-o", run: openFolder },
   { id: "file.newProject", group: "File", title: "New Project…", run: newProject },
-  { id: "file.save", group: "File", title: "Save", keys: "Mod-s", run: saveFile, enabled: () => !!current && !VIEWABLE.test(current) },
+  { id: "file.save", group: "File", title: "Save", keys: "Mod-s", run: saveFile, enabled: () => !!current && !VIEWABLE.test(current) && !/\.(csv|tsv)$/i.test(current) },
   {
     id: "file.reveal", group: "File", title: "Reveal in Finder", enabled: hasProject,
     run: () => revealItemInDir(current ? `${root}/${current}` : root!),
@@ -125,7 +125,13 @@ register(
   { id: "view.quickOpen", group: "View", title: "Go to File…", keys: "Mod-p", run: quickOpen, enabled: hasProject },
   { id: "view.files", group: "View", title: "Show Files", enabled: hasProject, run: () => showSidebar("files") },
   { id: "view.figures", group: "View", title: "Show Figures", enabled: hasProject, run: () => showSidebar("figures") },
-  { id: "view.outline", group: "View", title: "Show Outline", enabled: hasProject, run: () => showSidebar("outline") },
+  { id: "view.outline", group: "View", title: "Show Outline", enabled: hasProject, run: () => { showSidebar("files"); showOutline(true); } },
+  { id: "view.references", group: "View", title: "Show References", enabled: hasProject, run: () => showSidebar("references") },
+  { id: "view.symbols", group: "View", title: "Show Symbols", enabled: hasProject, run: () => showSidebar("symbols") },
+  { id: "edit.cite", group: "Edit", title: "Add Citation by DOI or arXiv ID…", keys: "Mod-Shift-c", enabled: hasProject, run: addCitation },
+  { id: "view.math", group: "View", title: "Maths Preview", enabled: hasProject, checked: () => settings.mathPreview, run: () => updateSettings({ mathPreview: !settings.mathPreview }) },
+  { id: "view.review", group: "View", title: "Show Review", enabled: hasProject, run: () => showSidebar("review") },
+  { id: "file.upload", group: "File", title: "Upload Files…", enabled: hasProject, run: () => uploadFiles() },
   { id: "view.git", group: "View", title: "Show Git", enabled: hasProject, run: () => showSidebar("git") },
   { id: "view.openSide", group: "View", title: "Open to the Side…", enabled: hasProject, run: pickSideFile },
   { id: "view.closeSide", group: "View", title: "Close Side Pane", enabled: sideOpen, run: closeSide },
@@ -234,23 +240,23 @@ const MENU_ICON = {
 };
 
 createMenubar($("menubar"), [
-  { title: "File", icon: MENU_ICON.file, entries: ["file.new", "file.newNotebook", "file.newFolder", "-", "file.newProject", "file.open", { title: "Open Recent", icon: ICONS.recent, submenu: recentEntries }, "-", "file.save", "file.rename", "file.trash", "-", "file.reveal", "file.closeTab", "file.close"] },
-  { title: "Edit", icon: MENU_ICON.edit, entries: ["edit.undo", "edit.redo", "-", "edit.cut", "edit.copy", "edit.paste", "edit.selectAll", "-", "edit.find", "edit.findInProject", "edit.comment"] },
+  { title: "File", icon: MENU_ICON.file, entries: ["file.new", "file.newNotebook", "file.newFolder", "file.upload", "-", "file.newProject", "file.open", { title: "Open Recent", icon: ICONS.recent, submenu: recentEntries }, "-", "file.save", "file.rename", "file.trash", "-", "file.export", "file.reveal", "-", "file.closeTab", "file.close"] },
+  { title: "Edit", icon: MENU_ICON.edit, entries: ["edit.undo", "edit.redo", "-", "edit.cut", "edit.copy", "edit.paste", "edit.selectAll", "-", "edit.find", "edit.findInProject", "edit.comment", "-", "edit.cite"] },
   {
     title: "View",
     icon: MENU_ICON.view,
     entries: [
       "view.palette", "view.quickOpen", "-",
-      "view.files", "edit.findInProject", "view.figures", "view.outline", "view.git", "-",
+      "view.files", "edit.findInProject", "view.figures", "view.outline", "view.git", "view.references", "view.symbols", "view.review", "-",
       "view.openSide", "view.closeSide", "-",
       "view.sidebar", "view.preview", "view.log", "view.terminal", "-",
       { title: "Theme", icon: ICONS.theme, submenu: () => ["view.themeDark", "view.themeLight"] }, "-",
-      "view.vim", "view.relativeNumbers", "view.spell", "-",
+      "view.vim", "view.relativeNumbers", "view.spell", "view.math", "-",
       "view.zoomIn", "view.zoomOut", "view.zoomReset", "-",
       "view.pdfZoomIn", "view.pdfZoomOut", "view.pdfFit", "view.pdfFind",
     ],
   },
-  { title: "Build", icon: MENU_ICON.build, entries: ["build.compile", "build.compileOnSave", "build.showInPdf", "-", "build.runNotebooks", "build.runCell", "build.restartKernel", "-", "build.runFile", "build.stop", "view.terminal", "-", "view.log", "build.openPdf"] },
+  { title: "Build", icon: MENU_ICON.build, entries: ["build.compile", "build.compileOnSave", "build.showInPdf", "build.showInSource", "-", "build.runNotebooks", "build.runCell", "build.restartKernel", "-", "build.runFile", "build.stop", "view.terminal", "-", "view.log", "build.openPdf"] },
   { title: "Help", icon: MENU_ICON.help, entries: ["help.shortcuts", "help.about"] },
 ]);
 

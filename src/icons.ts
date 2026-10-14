@@ -42,6 +42,8 @@ export const COMMAND_ICONS: Record<string, string> = {
   "file.newNotebook": ICONS.notebook,
   "file.newFolder": icon('<path d="M14 8.5V5.75a1 1 0 00-1-1H7.5L6 3.25H3a1 1 0 00-1 1v7.5a1 1 0 001 1h5"/><path d="M12 10v4M10 12h4"/>'),
   "file.open": ICONS.folder,
+  "file.export": icon('<path d="M8 2.75v7.5M5 7.25l3 3 3-3"/><path d="M2.75 10v2.25a1 1 0 001 1h8.5a1 1 0 001-1V10"/>'),
+  "file.upload": icon('<path d="M8 10.5V2.75M5 5.5l3-3 3 3"/><path d="M2.75 10v2.25a1 1 0 001 1h8.5a1 1 0 001-1V10"/>'),
   "file.newProject": icon('<path d="M8 3.25v9.5M3.25 8h9.5"/>'),
   "file.save": icon('<path d="M3 3.5a1 1 0 011-1h6.5L13 5v7.5a1 1 0 01-1 1H4a1 1 0 01-1-1v-9z"/><path d="M5.5 2.5v3h4v-3M5.5 13.5v-4h5v4"/>'),
   "file.rename": ICONS.pencil,

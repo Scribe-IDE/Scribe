@@ -122,9 +122,38 @@ export function scanOutline(tex: string): OutlineItem[] {
   return items;
 }
 
+export interface NoteItem { kind: "TODO" | "FIXME" | "NOTE"; text: string; line: number; }
+
+/** Notes left for later: `% TODO: ...`, `% FIXME ...`, `% NOTE ...` comments and \\todo{...}. */
+export function scanNotes(tex: string): NoteItem[] {
+  const notes: NoteItem[] = [];
+  tex.split("\n").forEach((text, i) => {
+    const comment = /(?:^|[^\\])%+\s*(TODO|FIXME|NOTE|XXX)\b[:\s-]*(.*)$/i.exec(text);
+    if (comment) {
+      const kind = comment[1].toUpperCase();
+      notes.push({ kind: kind === "XXX" ? "FIXME" : (kind as NoteItem["kind"]), text: comment[2].trim(), line: i + 1 });
+      return;
+    }
+    const command = /\\(todo|fixme)(?:\[[^\]]*\])?\{/i.exec(stripComments(text));
+    if (command) {
+      const open = text.indexOf("{", text.indexOf(command[0]));
+      notes.push({ kind: command[1].toLowerCase() === "fixme" ? "FIXME" : "TODO", text: plain(braced(text, open)), line: i + 1 });
+    }
+  });
+  return notes;
+}
+
 /** A stored value as a person would read it: without the LaTeX escaping, tables as one word. */
-export const displayValue = (value: string | null) =>
-  value === null ? "not run yet" : value.includes("\\begin{tabular}") ? "table" : value.replace(/\\([%&#_$])/g, "$1");
+export function displayValue(value: string | null): string {
+  if (value === null) return "not run yet";
+  if (value.includes("\\begin{tabular}")) return "table";
+  return value
+    // siunitx numbers: \qty{3.21 +- 0.04 e-5}{kg} reads as 3.21 ± 0.04 ×10^-5 kg
+    .replace(/\\(?:qty|num)\{([^{}]*)\}(?:\{([^{}]*)\})?/g, (_m, number: string, unit?: string) =>
+      number.replace(/\s*\+-\s*/, " ± ").replace(/\s*e\+?(-?\d+)/, " ×10^$1") + (unit ? " " + unit.replace(/\\percent/g, "%") : ""))
+    .replace(/~?\\unit\{([^{}]*)\}/g, " $1")
+    .replace(/\\([%&#_$])/g, "$1");
+}
 
 // ----- project scan -----
 

@@ -15,6 +15,9 @@ try {
   sizes.hidePreview = saved.hidePreview === true;
 } catch {}
 
+/** Width of the icon rail at the left edge of the sidebar; `sizes.sidebar` is the panel beside it. */
+const RAIL = 41;
+
 export function applySizes() {
   layoutEl.style.setProperty("--sidebar-w", `${sizes.sidebar}px`);
   layoutEl.style.setProperty("--pdf-w", `${(sizes.pdf * 100).toFixed(2)}%`);
@@ -33,9 +36,9 @@ export function togglePane(which: "sidebar" | "preview") {
 export function resizePane(which: string, x: number) {
   const total = layoutEl.clientWidth;
   if (which === "sidebar") {
-    sizes.sidebar = clamp(x, 168, Math.min(420, total * (1 - sizes.pdf) - 280));
+    sizes.sidebar = clamp(x - RAIL, 168, Math.min(420, total * (1 - sizes.pdf) - 280 - RAIL));
   } else {
-    sizes.pdf = clamp(total - x, 280, total - sizes.sidebar - 280) / total;
+    sizes.pdf = clamp(total - x, 280, total - sizes.sidebar - RAIL - 280) / total;
   }
   applySizes();
 }
@@ -68,7 +71,7 @@ for (const handle of document.querySelectorAll<HTMLElement>(".splitter")) {
     if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
     e.preventDefault();
     const step = e.key === "ArrowLeft" ? -16 : 16;
-    const x = which === "sidebar" ? sizes.sidebar : layoutEl.clientWidth * (1 - sizes.pdf);
+    const x = which === "sidebar" ? sizes.sidebar + RAIL : layoutEl.clientWidth * (1 - sizes.pdf);
     resizePane(which, x + step);
     commitSizes();
   });

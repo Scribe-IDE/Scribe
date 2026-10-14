@@ -89,6 +89,7 @@ export async function compile() {
   if (!root || compiling) return;
   compiling = true;
   $<HTMLButtonElement>("btn-compile").disabled = true;
+  $("pdf-pane").classList.add("busy"); // the preview shows that it is about to be replaced
   try {
     await save();
     await saveSide(); // the side pane may hold part of the paper
@@ -113,6 +114,7 @@ export async function compile() {
     setStatus("Couldn't compile", "err");
   } finally {
     refreshIndexSoon(); // notebooks may have produced new figures or values
+    $("pdf-pane").classList.remove("busy");
     compiling = false;
     $<HTMLButtonElement>("btn-compile").disabled = false;
   }

@@ -323,8 +323,9 @@ export function renderNotebookCells() {
           out.innerHTML = '<div class="nb-out-running">Running…</div>';
           out.hidden = false;
         }
+        const started = performance.now();
         const result = await runCellInline(cell.source, `cell-${i}`, out);
-        setCellState(card, result);
+        setCellState(card, result, (performance.now() - started) / 1000);
         run.disabled = false;
         run.innerHTML = ICON_PLAY;
       };
@@ -506,7 +507,7 @@ export type CellRunState = "ok" | "quiet" | "err";
 export const ICON_CHECK = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7"/></svg>';
 export const ICON_FAIL = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M8 4v5M8 11.75v.01"/></svg>';
 
-export function setCellState(card: HTMLElement, state: CellRunState | null) {
+export function setCellState(card: HTMLElement, state: CellRunState | null, seconds?: number) {
   card.classList.remove("ran-ok", "ran-quiet", "ran-err");
   const mark = card.querySelector<HTMLElement>(".nb-cell-mark");
   if (!mark) return;
@@ -518,6 +519,12 @@ export function setCellState(card: HTMLElement, state: CellRunState | null) {
   card.classList.add(`ran-${state}`);
   mark.innerHTML = state === "err" ? ICON_FAIL : ICON_CHECK;
   mark.title = state === "err" ? "Failed" : state === "quiet" ? "Ran with no output" : "Ran";
+  if (seconds !== undefined) {
+    const time = document.createElement("span");
+    time.className = "nb-cell-time";
+    time.textContent = seconds < 10 ? `${seconds.toFixed(1)} s` : `${Math.round(seconds)} s`;
+    mark.appendChild(time);
+  }
 }
 
 export function outputBlock(className: string, text: string): HTMLElement {

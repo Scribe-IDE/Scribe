@@ -78,6 +78,40 @@ fn list_dirs(root: String) -> Result<Vec<String>, String> {
     Ok(out)
 }
 
+/// Copies files from anywhere on the computer into the project folder `dir` ("" for the root).
+/// Nothing is overwritten: a name that is taken gets " 2", " 3", ... before its extension.
+#[tauri::command]
+fn import_files(root: String, dir: String, sources: Vec<String>) -> Result<Vec<String>, String> {
+    let mut added = Vec::new();
+    for source in sources {
+        let from = Path::new(&source);
+        if !from.is_file() {
+            return Err(format!("{source} is not a file"));
+        }
+        let name = from.file_name().ok_or("file has no name")?.to_string_lossy().to_string();
+        let (stem, ext) = match name.rsplit_once('.') {
+            Some((stem, ext)) if !stem.is_empty() => (stem.to_string(), format!(".{ext}")),
+            _ => (name.clone(), String::new()),
+        };
+        let mut n = 1;
+        let (rel, dest) = loop {
+            let candidate = if n == 1 { name.clone() } else { format!("{stem} {n}{ext}") };
+            let rel = if dir.is_empty() { candidate } else { format!("{dir}/{candidate}") };
+            let dest = resolve(&root, &rel)?;
+            if !dest.exists() {
+                break (rel, dest);
+            }
+            n += 1;
+        };
+        if let Some(parent) = dest.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        std::fs::copy(from, &dest).map_err(|e| format!("{name}: {e}"))?;
+        added.push(rel);
+    }
+    Ok(added)
+}
+
 /// `resolve` for commands that move or remove things: the project root itself is off limits.
 fn resolve_entry(root: &str, rel: &str) -> Result<PathBuf, String> {
     if rel.trim_matches(|c| c == '/' || c == '.').is_empty() {

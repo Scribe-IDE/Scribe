@@ -22,10 +22,14 @@ export interface Settings {
   cellLineNumbers: boolean;
   /** Underline misspelled words in .tex, .md and .txt files. */
   spellCheck: boolean;
+  /** Show the rendered formula beside the cursor while editing maths. */
+  mathPreview: boolean;
+  /** Row height in lists and tabs. */
+  density: "comfortable" | "compact";
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  theme: "dark", fontSize: 13, order: {}, compileOnSave: false, vim: false, lineNumbers: "absolute", cellLineNumbers: false, spellCheck: true,
+  theme: "dark", fontSize: 13, order: {}, compileOnSave: false, vim: false, lineNumbers: "absolute", cellLineNumbers: false, spellCheck: true, mathPreview: true, density: "comfortable",
 };
 export const FONT_MIN = 10;
 export const FONT_MAX = 24;
@@ -68,6 +72,8 @@ export async function loadSettings() {
     if (["absolute", "relative", "off"].includes(parsed.lineNumbers)) settings.lineNumbers = parsed.lineNumbers;
     settings.cellLineNumbers = parsed.cellLineNumbers === true;
     settings.spellCheck = parsed.spellCheck !== false;
+    settings.mathPreview = parsed.mathPreview !== false;
+    if (parsed.density === "compact") settings.density = "compact";
   } catch {}
   applySettings();
 }
@@ -80,6 +86,8 @@ export async function saveSettings() {
 export function applySettings() {
   const rootEl = document.documentElement;
   rootEl.setAttribute("data-theme", settings.theme);
+  rootEl.setAttribute("data-density", settings.density);
+  $<HTMLSelectElement>("setting-density").value = settings.density;
   rootEl.style.setProperty("--editor-fs", `${settings.fontSize}px`);
   $<HTMLSelectElement>("setting-theme").value = settings.theme;
   $<HTMLSelectElement>("setting-fontsize").value = String(settings.fontSize);
@@ -120,6 +128,12 @@ $("setting-vim").addEventListener("change", (e) => {
 });
 $("setting-line-numbers").addEventListener("change", (e) => {
   updateSettings({ lineNumbers: (e.target as HTMLSelectElement).value as LineNumberStyle });
+});
+$("setting-density").addEventListener("change", (e) => {
+  updateSettings({ density: (e.target as HTMLSelectElement).value as Settings["density"] });
+});
+$("setting-math").addEventListener("change", (e) => {
+  updateSettings({ mathPreview: (e.target as HTMLInputElement).checked });
 });
 $("setting-spell").addEventListener("change", (e) => {
   updateSettings({ spellCheck: (e.target as HTMLInputElement).checked });

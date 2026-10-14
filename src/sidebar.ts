@@ -1,20 +1,24 @@
 // File list (icons, drag to move, right-click actions), project search and git marks.
 import { invoke } from "@tauri-apps/api/core";
-import { ask } from "@tauri-apps/plugin-dialog";
+import { ask, open } from "@tauri-apps/plugin-dialog";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { COMMAND_ICONS, ICONS } from "./icons";
 import { openContextMenu } from "./menubar";
 import { openPalette, promptInput } from "./palette";
 import { $, baseName, CREATABLE, current, VIEWABLE, dirty, GIT_CLASS, GIT_LABEL, insideProject, listed, mainFile, NOTEBOOK_SOURCE, PAGE, parentOf, renderCrumb, root, setCurrent, setMainFile, setStatus, svg } from "./core";
+import { renderReferences } from "./cite";
 import { renderGallery } from "./gallery";
 import { renderGit } from "./git";
 import { sizes, togglePane } from "./layout";
 import { emptyIpynb } from "./notebook";
 import { renderOutline } from "./outline";
+import { renderReview } from "./review";
 import { listDirs, listFiles, openFile, revealLine, save } from "./project";
 import { saveSettings, settings } from "./settings";
 import { openToSide, sideGone, sideMoved } from "./split";
+import { saveSessionSoon } from "./session";
 import { refreshBranch } from "./statusbar";
+import { renderSymbols } from "./symbols";
 import { dropTabs, renameTabs } from "./tabs";
 import { NotebookInfo } from "./types";
 
@@ -34,7 +38,7 @@ export async function newFile(dir = "", suggestion = "") {
     value: prefill || undefined,
     validate: (rel) => {
       if (!insideProject(rel)) return "The file has to live inside the project.";
-      if (!CREATABLE.test(rel)) return "Use one of these extensions: .tex, .py, .ipynb, .bib, .sty, .cls, .txt, .md";
+      if (!CREATABLE.test(rel)) return "Use one of these extensions: .tex, .py, .ipynb, .bib, .sty, .cls, .txt, .md, .csv";
       if (taken.has(rel)) return `${rel} already exists.`;
       return null;
     },
@@ -45,6 +49,22 @@ export async function newFile(dir = "", suggestion = "") {
       await openFile(rel);
     },
   });
+}
+
+/** Copy files from elsewhere on the computer into the project (into `dir`, or the root). */
+export async function uploadFiles(dir = "") {
+  if (!root) return;
+  const picked = await open({ multiple: true, title: dir ? `Add files to ${dir}` : "Add files to the project" });
+  const sources = Array.isArray(picked) ? picked : picked ? [picked] : [];
+  if (!sources.length) return;
+  try {
+    const added = await invoke<string[]>("import_files", { root, dir, sources });
+    collapsedDirs.delete(dir);
+    setStatus(added.length === 1 ? `Added ${added[0]}` : `Added ${added.length} files`, "ok");
+  } catch (e) {
+    setStatus(`Couldn't add the files: ${e}`, "err");
+  }
+  await refreshFiles();
 }
 
 export async function newFolder(dir = "") {
@@ -177,7 +197,7 @@ export function fileRow(f: string, dir: string, gitMap: Map<string, string>): HT
     e.stopPropagation();
     openContextMenu(e.clientX, e.clientY, [
       { title: "Open", icon: ICONS.page, run: () => openFile(f) },
-      { title: "Open to the Side", icon: ICONS.split, enabled: !VIEWABLE.test(f) && !f.endsWith(".ipynb"), run: () => openToSide(f) },
+      { title: "Open to the Side", icon: ICONS.split, enabled: !VIEWABLE.test(f), run: () => openToSide(f) },
       "-",
       { title: "New File…", icon: COMMAND_ICONS["file.new"], run: () => newFile(dir) },
       { title: "New Notebook…", icon: ICONS.notebook, run: () => newFile(dir, "untitled.ipynb") },
@@ -353,6 +373,7 @@ export function dirRow(dir: string): HTMLElement {
       { title: "New File…", icon: COMMAND_ICONS["file.new"], run: () => newFile(dir) },
       { title: "New Notebook…", icon: ICONS.notebook, run: () => newFile(dir, "untitled.ipynb") },
       { title: "New Folder…", icon: COMMAND_ICONS["file.newFolder"], run: () => newFolder(dir) },
+      { title: "Upload Files Here…", icon: COMMAND_ICONS["file.upload"], run: () => uploadFiles(dir) },
       "-",
       { title: "Rename…", icon: ICONS.pencil, run: () => renameEntry(dir, true) },
       { title: "Move to Trash", icon: ICONS.trash, run: () => deleteEntry(dir, true) },
@@ -405,22 +426,40 @@ export async function refreshFiles() {
 }
 
 // ---------- sidebar tabs ----------
-export type SidebarTab = "files" | "search" | "figures" | "outline" | "git";
+export type SidebarTab = "files" | "search" | "figures" | "git" | "references" | "symbols" | "review";
 
 const PANEL: Record<SidebarTab, string> = {
-  files: "files", search: "search-panel", figures: "figures-panel", outline: "outline-panel", git: "git-panel",
+  files: "files-panel", search: "search-panel", figures: "figures-panel", git: "git-panel",
+  references: "references-panel", symbols: "symbols-panel", review: "review-panel",
 };
 
+const PANEL_NAME: Record<SidebarTab, string> = {
+  files: "File tree", search: "Search", figures: "Figures and values", git: "Git", references: "References",
+  symbols: "Symbols", review: "Review",
+};
+
+/** The panel showing in the sidebar. */
+export let currentSidebarTab: SidebarTab = "files";
+
 export function showSidebar(which: SidebarTab) {
+  currentSidebarTab = which;
+  saveSessionSoon();
   if (sizes.hideSidebar) togglePane("sidebar");
   for (const tab of Object.keys(PANEL) as SidebarTab[]) {
     $(PANEL[tab]).hidden = tab !== which;
     $(`tab-${tab}`).setAttribute("aria-selected", String(tab === which));
   }
-  // New file / folder only make sense beside the file list.
-  $("side-new").hidden = $("side-new-folder").hidden = which !== "files";
+  $("side-name").textContent = PANEL_NAME[which];
+  // Each panel shows its own actions: creating things beside the file list, refresh elsewhere.
+  $("side-new").hidden = $("side-new-folder").hidden = $("side-upload").hidden = which !== "files";
+  $("side-refresh").hidden = which === "files" || which === "search" || which === "symbols";
+  $("side-add-cite").hidden = which !== "references";
+  $("side-refresh").onclick = () => showSidebar(which);
   if (which === "figures") renderGallery();
-  if (which === "outline") renderOutline();
+  if (which === "files") renderOutline();
+  if (which === "review") renderReview();
+  if (which === "references") renderReferences();
+  if (which === "symbols") renderSymbols();
   if (which === "git") renderGit();
   if (which === "search") {
     const input = $<HTMLInputElement>("search-input");

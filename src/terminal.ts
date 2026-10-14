@@ -42,9 +42,17 @@ function palette() {
   };
 }
 
-/** Call when the app theme changes. */
+// One step below the editor's size, so zooming the editor zooms the terminal with it.
+const fontSize = () => Math.max(10, (parseInt(getComputedStyle(document.documentElement).getPropertyValue("--editor-fs")) || 13) - 1);
+
+/** Call when the app theme or the editor font size changes. */
 export function refreshTerminalTheme() {
-  if (term) term.options.theme = palette();
+  if (!term) return;
+  term.options.theme = palette();
+  if (term.options.fontSize !== fontSize()) {
+    term.options.fontSize = fontSize();
+    if (!termPanel.hidden) fit?.fit();
+  }
 }
 
 // Created on first use: xterm measures its container, which has no size while the panel is hidden.
@@ -52,7 +60,7 @@ function ensureTerminal(): Terminal {
   if (term) return term;
   term = new Terminal({
     fontFamily: 'ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace',
-    fontSize: 12,
+    fontSize: fontSize(),
     lineHeight: 1.3,
     cursorBlink: true,
     scrollback: 5000,
