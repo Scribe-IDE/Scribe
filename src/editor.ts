@@ -17,7 +17,7 @@ import { stex } from "@codemirror/legacy-modes/mode/stex";
 import { python } from "@codemirror/lang-python";
 import { autocompletion, closeBrackets, closeBracketsKeymap, Completion, CompletionContext, completionKeymap } from "@codemirror/autocomplete";
 import { tags as t } from "@lezer/highlight";
-import { compile, saveFile } from "./build";
+import { compile, compileSoon, saveFile } from "./build";
 import { $, current, setDirty } from "./core";
 import { mathPreview } from "./mathpreview";
 import { isNote, notesCompletion, notesExtension } from "./notes";
@@ -306,7 +306,11 @@ export function completionFor(path: string): Extension {
 export interface EditorHooks { onChange(): void; onSave(): void; }
 
 const mainHooks: EditorHooks = {
-  onChange: () => { if (current) setDirty(true); },
+  onChange: () => {
+    if (!current) return;
+    setDirty(true);
+    compileSoon();
+  },
   onSave: () => { saveFile(); },
 };
 

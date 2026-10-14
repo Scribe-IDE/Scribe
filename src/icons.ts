@@ -112,6 +112,7 @@ export const COMMAND_ICONS: Record<string, string> = {
   "build.openPdf": ICONS.out,
   "build.showInSource": icon('<path d="M13.5 8h-9M7.75 4.5L4.25 8l3.5 3.5M2.5 3.25v9.5"/>'),
   "build.showInPdf": icon('<circle cx="8" cy="8" r="4.25"/><path d="M8 1.75v3M8 11.25v3M1.75 8h3M11.25 8h3"/>'),
+  "build.compileOnType": icon('<path d="M2.5 11.5h3M7 11.5h2M10.5 11.5h3M2.5 8.5h11M9 1.75L5.5 6h3l-.5 2.5"/>'),
   "build.compileOnSave": icon('<path d="M9 1.75L3.5 9h4l-.75 5.25L12.5 7h-4L9 1.75z"/>'),
   "view.terminal": icon(FRAME + '<path d="M4.75 6.25L6.75 8l-2 1.75M8.25 10h3"/>'),
 

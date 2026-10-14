@@ -16,6 +16,8 @@ export interface Settings {
   order: Record<string, string[]>;
   /** Saving (⌘S) also compiles the paper. */
   compileOnSave: boolean;
+  /** Recompile a moment after typing stops. */
+  compileOnType: boolean;
   /** Vim keys in the editor and in notebook cells. */
   vim: boolean;
   lineNumbers: LineNumberStyle;
@@ -30,7 +32,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  theme: "dark", fontSize: 13, order: {}, compileOnSave: false, vim: false, lineNumbers: "absolute", cellLineNumbers: false, spellCheck: true, mathPreview: true, density: "comfortable",
+  theme: "dark", fontSize: 13, order: {}, compileOnSave: false, compileOnType: false, vim: false, lineNumbers: "absolute", cellLineNumbers: false, spellCheck: true, mathPreview: true, density: "comfortable",
 };
 export const FONT_MIN = 10;
 export const FONT_MAX = 24;
@@ -69,6 +71,7 @@ export async function loadSettings() {
     if (typeof parsed.fontSize === "number") settings.fontSize = Math.min(FONT_MAX, Math.max(FONT_MIN, parsed.fontSize));
     if (parsed.order && typeof parsed.order === "object") settings.order = parsed.order;
     settings.compileOnSave = parsed.compileOnSave === true;
+    settings.compileOnType = parsed.compileOnType === true;
     settings.vim = parsed.vim === true;
     if (["absolute", "relative", "off"].includes(parsed.lineNumbers)) settings.lineNumbers = parsed.lineNumbers;
     settings.cellLineNumbers = parsed.cellLineNumbers === true;
@@ -93,6 +96,7 @@ export function applySettings() {
   $<HTMLSelectElement>("setting-theme").value = settings.theme;
   $<HTMLSelectElement>("setting-fontsize").value = String(settings.fontSize);
   $<HTMLInputElement>("setting-compile-on-save").checked = settings.compileOnSave;
+  $<HTMLInputElement>("setting-compile-on-type").checked = settings.compileOnType;
   $<HTMLInputElement>("setting-vim").checked = settings.vim;
   $<HTMLSelectElement>("setting-line-numbers").value = settings.lineNumbers;
   $<HTMLInputElement>("setting-cell-numbers").checked = settings.cellLineNumbers;
@@ -163,6 +167,16 @@ export function setCompileOnSave(on: boolean) {
 
 $("setting-compile-on-save").addEventListener("change", (e) => {
   setCompileOnSave((e.target as HTMLInputElement).checked);
+});
+
+export function setCompileOnType(on: boolean) {
+  settings.compileOnType = on;
+  applySettings();
+  saveSettings();
+}
+
+$("setting-compile-on-type").addEventListener("change", (e) => {
+  setCompileOnType((e.target as HTMLInputElement).checked);
 });
 
 export function toggleSettings(show?: boolean) {

@@ -20,7 +20,7 @@ import { sizes, togglePane } from "./layout";
 import { activeCell, cellRunners, isNotebook, restartKernel } from "./notebook";
 import { closeProject, listFiles, openFolder, openProject } from "./project";
 import { canShowInPdf, focusPdfFind, goToSelectionSource, hasPdf, hasPdfSelection, lastPdf, showInPdf, zoomPdf } from "./preview";
-import { setCompileOnSave, setTheme, settings, toggleSettings, updateSettings, zoom } from "./settings";
+import { setCompileOnSave, setCompileOnType, setTheme, settings, toggleSettings, updateSettings, zoom } from "./settings";
 import { showOutline } from "./outline";
 import { deleteEntry, newFile, newFolder, quickOpen, renameEntry, showSidebar, uploadFiles } from "./sidebar";
 import iconUrl from "../src-tauri/icons/icon.svg?url";
@@ -195,6 +195,10 @@ register(
     checked: () => settings.compileOnSave, run: () => setCompileOnSave(!settings.compileOnSave),
   },
   {
+    id: "build.compileOnType", group: "Build", title: "Compile as You Type", enabled: hasProject,
+    checked: () => settings.compileOnType, run: () => setCompileOnType(!settings.compileOnType),
+  },
+  {
     id: "build.openPdf", group: "Build", title: "Open PDF Externally", enabled: () => !!root && !!lastPdf,
     run: () => openPath(`${root}/${lastPdf}`),
   },
@@ -298,13 +302,13 @@ createMenubar($("menubar"), [
       "view.pdfZoomIn", "view.pdfZoomOut", "view.pdfFit", "view.pdfFind",
     ],
   },
-  { title: "Build", icon: MENU_ICON.build, entries: ["build.compile", "build.compileOnSave", "build.showInPdf", "build.showInSource", "build.check", "-", "build.runNotebooks", "build.runCell", "build.restartKernel", "-", "build.runFile", "build.stop", "view.terminal", "-", "view.log", "build.openPdf", "-", "build.installLatex"] },
+  { title: "Build", icon: MENU_ICON.build, entries: ["build.compile", "build.compileOnSave", "build.compileOnType", "build.showInPdf", "build.showInSource", "build.check", "-", "build.runNotebooks", "build.runCell", "build.restartKernel", "-", "build.runFile", "build.stop", "view.terminal", "-", "view.log", "build.openPdf", "-", "build.installLatex"] },
   { title: "Help", icon: MENU_ICON.help, entries: ["help.shortcuts", "help.about"] },
 ]);
 
 // ---------- wire up ----------
 $("btn-open").onclick = openFolder;
-$("btn-compile").onclick = compile;
+$("btn-compile").onclick = () => compile();
 $("btn-run").onclick = runNotebook;
 $("btn-settings").onclick = () => toggleSettings();
 $("welcome-open").onclick = openFolder;

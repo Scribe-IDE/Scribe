@@ -100,7 +100,24 @@ async function problemsFrom(log: string): Promise<Problem[]> {
   return explain(found, (file) => texts.get(file) ?? null);
 }
 
-export async function compile() {
+let typingTimer: number | null = null;
+
+/** Compile as you type: after a pause in typing in a .tex file, save and compile quietly. */
+export function compileSoon() {
+  if (!settings.compileOnType || !root || !current?.endsWith(".tex")) return;
+  if (typingTimer) clearTimeout(typingTimer);
+  typingTimer = window.setTimeout(function again() {
+    if (compiling) {
+      typingTimer = window.setTimeout(again, 800); // wait for the compile in progress
+      return;
+    }
+    typingTimer = null;
+    compile({ quiet: true });
+  }, 1500);
+}
+
+/** `quiet`: a compile nobody asked for (while typing) doesn't open the log on failure. */
+export async function compile({ quiet = false } = {}) {
   if (!root || compiling) return;
   compiling = true;
   $<HTMLButtonElement>("btn-compile").disabled = true;
@@ -115,7 +132,7 @@ export async function compile() {
     setStatus(`Compiling ${mainFile}…`, "busy");
     const res = await invoke<CompileResult>("compile", { root, main: mainFile });
     // The parsed problems lead; the raw log stays one tab away.
-    setProblems(await problemsFrom(res.log), res.log, !res.ok);
+    setProblems(await problemsFrom(res.log), res.log, !res.ok && !quiet);
     const summary = problemSummary();
     if (res.ok && res.pdf) {
       await renderPdf(res.pdf);
