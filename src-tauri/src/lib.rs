@@ -1950,6 +1950,23 @@ fn spell_learn(word: String) {
     spell::learn(&word);
 }
 
+// ---------- submission check: file sizes ----------
+
+#[derive(Serialize)]
+struct FileSize {
+    rel: String,
+    bytes: u64,
+}
+
+#[tauri::command]
+fn file_sizes(root: String) -> Result<Vec<FileSize>, String> {
+    let base = Path::new(&root).canonicalize().map_err(|e| e.to_string())?;
+    Ok(list_files(root)?
+        .into_iter()
+        .map(|rel| FileSize { bytes: std::fs::metadata(base.join(&rel)).map(|m| m.len()).unwrap_or(0), rel })
+        .collect())
+}
+
 // ---------- environment ----------
 
 /// The PATH from the user's login shell. Apps launched from Finder or the Dock inherit only a
@@ -2220,6 +2237,7 @@ pub fn run() {
             kernel_start, kernel_run_cell, kernel_stop,
             spell_available, spell_check, spell_suggest, spell_learn, fetch_bibtex, export_bundle, write_binary,
             history_list, history_read, history_diff,             python_bin, check_tools, pty_start, pty_write, pty_resize, pty_kill,
+            python_bin, check_tools, pty_start, pty_write, pty_resize, pty_kill,
             synctex_edit, synctex_view
         ])
         .run(tauri::generate_context!())

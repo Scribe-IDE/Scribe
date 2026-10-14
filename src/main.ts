@@ -25,6 +25,7 @@ import { showOutline } from "./outline";
 import { deleteEntry, newFile, newFolder, quickOpen, renameEntry, showSidebar, uploadFiles } from "./sidebar";
 import iconUrl from "../src-tauri/icons/icon.svg?url";
 import { addCitation } from "./cite";
+import { checkBeforeSubmitting } from "./check";
 import { copyAsLatex, exportNotePdf, isNote, newNote, notePrefs, quickNote, refreshNotes, todaysNote } from "./notes";
 import { activeEditor, closeSide, openToSide, sideOpen } from "./split";
 import { loadProfile } from "./profile";
@@ -144,6 +145,7 @@ register(
   },
   { id: "edit.copyLatex", group: "Edit", title: "Copy Note as LaTeX", enabled: () => isNote(activeEditor()?.dom.dataset.path), run: copyAsLatex },
   { id: "view.history", group: "View", title: "Show History", enabled: hasProject, run: () => showSidebar("history") },
+  { id: "build.check", group: "Build", title: "Check Before Submitting", enabled: hasProject, run: checkBeforeSubmitting },
   { id: "view.review", group: "View", title: "Show Review", enabled: hasProject, run: () => showSidebar("review") },
   { id: "file.upload", group: "File", title: "Upload Files…", enabled: hasProject, run: () => uploadFiles() },
   { id: "view.git", group: "View", title: "Show Git", enabled: hasProject, run: () => showSidebar("git") },
@@ -293,7 +295,7 @@ createMenubar($("menubar"), [
       "view.pdfZoomIn", "view.pdfZoomOut", "view.pdfFit", "view.pdfFind",
     ],
   },
-  { title: "Build", icon: MENU_ICON.build, entries: ["build.compile", "build.compileOnSave", "build.showInPdf", "build.showInSource", "-", "build.runNotebooks", "build.runCell", "build.restartKernel", "-", "build.runFile", "build.stop", "view.terminal", "-", "view.log", "build.openPdf", "-"] },
+  { title: "Build", icon: MENU_ICON.build, entries: ["build.compile", "build.compileOnSave", "build.showInPdf", "build.showInSource", "build.check", "-", "build.runNotebooks", "build.runCell", "build.restartKernel", "-", "build.runFile", "build.stop", "view.terminal", "-", "view.log", "build.openPdf", "-"] },
   { title: "Help", icon: MENU_ICON.help, entries: ["help.shortcuts", "help.about"] },
 ]);
 
