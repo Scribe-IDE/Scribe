@@ -2200,3 +2200,15 @@ body.dragging-file #files * { cursor: grabbing; }
   .status.busy .status-mark { animation-duration: 2s; }
 }
 
+/* ── table editor (side pane) ── */
+.table-editor { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.table-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 8px 10px; border-bottom: 1px solid var(--border); }
+.table-bar .btn { height: 26px; padding: 0 9px; font-size: 12.5px; }
+.table-gap { flex: 1; }
+.table-grid { display: grid; gap: 1px; align-content: start; margin: 10px; overflow: auto; background: var(--border); border: 1px solid var(--border); border-radius: var(--r); }
+.table-align { height: 26px; padding: 0 6px; font-size: 12px; color: var(--muted); background: var(--panel); border: none; border-radius: 0; }
+.table-cell { min-width: 0; height: 30px; padding: 0 8px; font: 12.5px var(--font-mono); color: var(--fg); background: var(--bg); border: none; border-radius: 0; outline: none; }
+.table-cell.ruled { box-shadow: inset 0 1px 0 var(--fg-dim); }
+.table-cell:focus { background: var(--line-hl); box-shadow: inset 0 0 0 1px var(--accent); }
+.table-foot { padding: 0 12px 10px; font-size: 12px; color: var(--faint); }
+

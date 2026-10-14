@@ -91,6 +91,7 @@ export const COMMAND_ICONS: Record<string, string> = {
   "build.check": icon('<path d="M3 8.5l3 3 7-7"/>'),
   "build.installLatex": icon('<path d="M8 2.75v7.5M5 7.25l3 3 3-3"/><path d="M2.75 10.5v1.75a1 1 0 001 1h8.5a1 1 0 001-1V10.5"/>'),
   "file.notePdf": icon('<path d="M9 2.25H4.5a1 1 0 00-1 1v9.5a1 1 0 001 1h7a1 1 0 001-1V5.75z"/><path d="M9 2.25v3.5h3.5M6 9.5h4M6 11.5h2.5"/>'),
+  "edit.table": icon('<rect x="2.25" y="3" width="11.5" height="10" rx="1.25"/><path d="M2.25 6.5h11.5M2.25 9.75h11.5M6.25 3v10M10 3v10"/>'),
   "view.notes": icon('<path d="M10.5 2.25H4.25a1 1 0 00-1 1v9.5a1 1 0 001 1h7.5a1 1 0 001-1V7"/><path d="M5.75 6.5h3M5.75 9h4.5M12.6 1.9l1.5 1.5-4.35 4.35-2 .5.5-2z"/>'),
   "file.newNote": icon('<path d="M10.5 2.25H4.25a1 1 0 00-1 1v9.5a1 1 0 001 1h7.5a1 1 0 001-1V7"/><path d="M5.75 6.5h3M5.75 9h4.5M12.6 1.9l1.5 1.5-4.35 4.35-2 .5.5-2z"/>'),
   "file.todaysNote": icon('<rect x="2.5" y="3.25" width="11" height="10.25" rx="1.5"/><path d="M2.5 6.5h11M5.5 2v2.5M10.5 2v2.5M7 9.5h2"/>'),
