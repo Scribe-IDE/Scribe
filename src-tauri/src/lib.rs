@@ -2455,7 +2455,7 @@ pub fn run() {
             parse_notebook, run_notebook, generate_style,
             git_status, git_branch, git_overview, git_diff, git_commit, git_push, git_init, git_identity, search_project, read_settings, write_settings,
             kernel_start, kernel_run_cell, kernel_stop,
-            spell_available, spell_check, spell_suggest, spell_learn, fetch_bibtex, export_bundle, write_binary,
+            spell_available, spell_check, spell_suggest, spell_learn, fetch_bibtex, export_bundle, write_binary, 
             history_list, history_read, history_diff, import_zip, clone_project, file_sizes, zotero_get, install_tectonic,
             python_bin, check_tools, pty_start, pty_write, pty_resize, pty_kill,
             synctex_edit, synctex_view

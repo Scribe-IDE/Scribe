@@ -47,7 +47,6 @@
 
   <div id="app" class="hidden">
     <header id="titlebar" data-tauri-drag-region>
-      <button id="profile-btn" class="avatar" aria-haspopup="true" aria-expanded="false" aria-label="Profile"></button>
       <span class="tb-drag" data-tauri-drag-region></span>
       <button id="btn-open" class="crumb-project" title="Open another project (⌘O)">
         <span id="project-name"></span>
@@ -258,8 +257,7 @@
       <input id="setting-compile-on-save" type="checkbox" role="switch" />
     </label>
   </div>
-
-  <div id="profile-popover" role="dialog" aria-label="Profile" hidden>
+    <h3 class="settings-group">Profile</h3>
     <p class="profile-note">Kept on this computer. Signs new papers and the commits you make in Scribe.</p>
     <label class="profile-field"><span>Name</span><input id="profile-name" type="text" autocomplete="off" spellcheck="false" /></label>
     <label class="profile-field"><span>Email</span><input id="profile-email" type="text" autocomplete="off" spellcheck="false" /></label>

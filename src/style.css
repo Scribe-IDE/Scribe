@@ -1837,38 +1837,9 @@ body.dragging-file #files * { cursor: grabbing; }
 .pdf-empty p:first-child { color: var(--fg-dim); font-weight: 500; }
 
 /* ── profile ── */
-.avatar {
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  color: var(--accent);
-  background: var(--accent-dim);
-  transition: background 150ms ease, color 150ms ease;
-}
-
-.avatar:hover, .avatar[aria-expanded="true"] { color: var(--on-accent); background: var(--accent); }
-
-#profile-popover {
-  position: fixed;
-  top: 34px;
-  left: 72px;
-  z-index: 20;
-  width: 280px;
-  padding: 12px;
-  background: var(--raised);
-  border: 1px solid var(--border-hi);
-  border-radius: var(--r-lg);
-  animation: pop-in 140ms cubic-bezier(.16, 1, .3, 1);
-}
-
-.profile-note { margin-bottom: 10px; font-size: 12px; line-height: 1.5; color: var(--muted); }
+.profile-note { margin: 2px 0 4px; font-size: 12px; line-height: 1.5; color: var(--muted); }
 .profile-field { display: block; margin-top: 8px; }
+.profile-field:last-child { margin-bottom: 4px; }
 .profile-field span { display: block; margin-bottom: 4px; font-size: 12px; color: var(--fg-dim); }
 .profile-field input { width: 100%; }
 
@@ -1976,7 +1947,9 @@ body.dragging-file #files * { cursor: grabbing; }
   overflow-y: auto;
 }
 
-.welcome-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+/* one column, every button as wide as the widest */
+.welcome-actions { display: grid; gap: 8px; width: max-content; max-width: 100%; }
+.welcome-actions .btn { justify-content: flex-start; }
 .welcome-actions .btn svg { flex-shrink: 0; }
 
 .btn-outline { border: 1px solid var(--border-hi); color: var(--fg); }
@@ -2196,3 +2169,4 @@ body.dragging-file #files * { cursor: grabbing; }
   .spinner,
   .status.busy .status-mark { animation-duration: 2s; }
 }
+
