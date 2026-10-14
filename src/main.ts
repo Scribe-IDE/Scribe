@@ -29,6 +29,7 @@ import { exportForAnki, reviewCards } from "./cards";
 import { checkBeforeSubmitting } from "./check";
 import { newSketch } from "./sketch";
 import { editTable } from "./tables";
+import { startTour } from "./tour";
 import { copyAsLatex, exportNotePdf, isNote, newNote, notePrefs, quickNote, refreshNotes, todaysNote } from "./notes";
 import { activeEditor, closeSide, openToSide, sideOpen } from "./split";
 import { loadProfile } from "./profile";
@@ -207,6 +208,7 @@ register(
   },
 
   { id: "help.shortcuts", group: "Help", title: "Keyboard Shortcuts", run: commandPalette },
+  { id: "help.tour", group: "Help", title: "Take the Tour", enabled: hasProject, run: startTour },
   { id: "edit.table", group: "Edit", title: "Edit Table…", enabled: () => !!activeEditor()?.dom.dataset.path?.endsWith(".tex"), run: editTable },
   { id: "file.sketch", group: "File", title: "Insert Sketch…", keys: "Mod-Alt-d", enabled: () => isNote(activeEditor()?.dom.dataset.path), run: newSketch },
   { id: "file.review", group: "File", title: "Review Cards", enabled: hasProject, run: () => reviewCards() },
@@ -310,7 +312,7 @@ createMenubar($("menubar"), [
     ],
   },
   { title: "Build", icon: MENU_ICON.build, entries: ["build.compile", "build.compileOnSave", "build.compileOnType", "build.showInPdf", "build.showInSource", "build.check", "-", "build.runNotebooks", "build.runCell", "build.restartKernel", "-", "build.runFile", "build.stop", "view.terminal", "-", "view.log", "build.openPdf", "-", "build.installLatex"] },
-  { title: "Help", icon: MENU_ICON.help, entries: ["help.shortcuts", "help.about"] },
+  { title: "Help", icon: MENU_ICON.help, entries: ["help.shortcuts", "help.tour", "help.about"] },
 ]);
 
 // ---------- wire up ----------

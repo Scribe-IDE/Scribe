@@ -92,6 +92,7 @@ export const COMMAND_ICONS: Record<string, string> = {
   "build.check": icon('<path d="M3 8.5l3 3 7-7"/>'),
   "build.installLatex": icon('<path d="M8 2.75v7.5M5 7.25l3 3 3-3"/><path d="M2.75 10.5v1.75a1 1 0 001 1h8.5a1 1 0 001-1V10.5"/>'),
   "file.notePdf": icon('<path d="M9 2.25H4.5a1 1 0 00-1 1v9.5a1 1 0 001 1h7a1 1 0 001-1V5.75z"/><path d="M9 2.25v3.5h3.5M6 9.5h4M6 11.5h2.5"/>'),
+  "help.tour": icon('<circle cx="8" cy="8" r="5.75"/><path d="M10.25 5.75l-1.5 3-3 1.5 1.5-3z"/>'),
   "edit.table": icon('<rect x="2.25" y="3" width="11.5" height="10" rx="1.25"/><path d="M2.25 6.5h11.5M2.25 9.75h11.5M6.25 3v10M10 3v10"/>'),
   "file.sketch": icon('<path d="M2.5 12.5c2-3 3-6 4.5-6s.5 4 2 4 2-5 4.5-6.5"/>'),
   "file.review": icon('<rect x="3.75" y="2.25" width="9" height="11.5" rx="1.25"/><path d="M2 4.5v8.25a1.5 1.5 0 001.5 1.5h6.75M6.5 6.5h3.5M6.5 9h2.5"/>'),

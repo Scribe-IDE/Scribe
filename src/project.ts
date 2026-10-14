@@ -11,6 +11,7 @@ import { isNotebook, leaveNotebook, saveNotebook, stopKernel, updateNotebookView
 import { resetPdf } from "./preview";
 import { setPaperless } from "./layout";
 import { closeReader, isPaper, openReader } from "./reader";
+import { tourOnFirstProject } from "./tour";
 import { restoreCursor, restoreSession, saveSession } from "./session";
 import { loadSettings, resetSettings, toggleSettings } from "./settings";
 import { closeSide, sideFile } from "./split";
@@ -72,6 +73,7 @@ export async function openProject(path: string) {
     else showNoFile();
   }
   refreshIndex().catch(() => {});
+  tourOnFirstProject();
 }
 
 /** The .tex file that declares \documentclass (projects from Overleaf often aren't main.tex). */
