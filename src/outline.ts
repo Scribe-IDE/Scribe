@@ -25,6 +25,14 @@ export function showOutline(open: boolean) {
 }
 
 toggle.onclick = () => showOutline(panel.hidden);
+// Opening another file changes what a note's outline shows.
+let shownFor: string | null = null;
+changeListeners.push(() => {
+  if (current !== shownFor) {
+    shownFor = current;
+    outlineChanged();
+  }
+});
 
 // The open file's text comes from the editor, so the outline tracks unsaved edits.
 async function textOf(rel: string): Promise<string> {
@@ -47,19 +55,33 @@ async function collect(rel: string, depth: number, seen: Set<string>): Promise<E
   return out;
 }
 
+/** "# Heading" lines of a Markdown note, outside fenced code. */
+function markdownHeadings(text: string, file: string): Entry[] {
+  const out: Entry[] = [];
+  let fenced = false;
+  text.split("\n").forEach((line, i) => {
+    if (/^```/.test(line)) fenced = !fenced;
+    const m = !fenced && /^(#{1,6})\s+(.+?)\s*#*\s*$/.exec(line);
+    if (m) out.push({ kind: "heading", level: m[1].length, title: m[2], line: i + 1, file });
+  });
+  return out;
+}
+
 export async function renderOutline() {
   if (!visible() || !root) return;
   const mine = ++job;
   // The paper as a whole when there is one; otherwise whatever .tex file is open.
-  const start = mainFile && (await textOf(mainFile)) ? mainFile : current?.endsWith(".tex") ? current : null;
-  const entries = start ? await collect(start, 0, new Set()) : [];
+  // A note shows its own headings; otherwise the paper as a whole, or whatever .tex file is open.
+  const note = current && /\.md$/i.test(current) ? current : null;
+  const start = note ? null : mainFile && (await textOf(mainFile)) ? mainFile : current?.endsWith(".tex") ? current : null;
+  const entries = note ? markdownHeadings(await textOf(note), note) : start ? await collect(start, 0, new Set()) : [];
   if (mine !== job) return;
 
   if (!entries.length) {
-    const note = document.createElement("div");
-    note.className = "empty";
-    note.textContent = "No sections yet. Headings like \\section{…} in the paper show up here.";
-    panel.replaceChildren(note);
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent = note ? "No headings yet. Lines starting with # show up here." : "No sections yet. Headings like \\section{…} in the paper show up here.";
+    panel.replaceChildren(empty);
     return;
   }
 

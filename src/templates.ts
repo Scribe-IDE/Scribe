@@ -38,7 +38,40 @@ const BIB = `@article{knuth1984,
 }
 `;
 
+const LECTURE = String.raw`# Lecture 1: Limits
+
+Notes render as you write: maths shows typeset as soon as the cursor leaves it.
+Press ⌥⌘N to jot something down without leaving this note, and ⌘V to paste a photo of the board.
+
+## Definition
+
+The sequence $(a_n)$ **converges** to $L \in \mathbb{R}$ if
+
+$$
+\forall \varepsilon > 0 \;\exists N \in \mathbb{N} : n \geq N \implies |a_n - L| < \varepsilon
+$$
+
+## Examples
+
+- $\lim_{n \to \infty} \frac{1}{n} = 0$
+- $\lim_{x \to 0} \frac{\sin x}{x} = 1$, see [[Lecture 2]] for the proof.
+
+## To do
+
+- [ ] Exercise sheet 1, questions 1 to 4
+- [x] Read chapter 2 of the course book
+`;
+
 export const TEMPLATES: Template[] = [
+  {
+    name: "Lecture notes",
+    detail: "Markdown notes with maths that render as you type; no paper needed",
+    files: {
+      "notes/Index.md": "# Course notes\n\n- [[Lecture 1]]\n- [[Inbox]] for quick notes (⌥⌘N)\n",
+      "notes/Lecture 1.md": LECTURE,
+      "notes/Inbox.md": "# Inbox\n",
+    },
+  },
   {
     name: "Article with a notebook",
     detail: "A short paper whose figure and one number come from a Python notebook",

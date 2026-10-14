@@ -25,6 +25,7 @@ import { showOutline } from "./outline";
 import { deleteEntry, newFile, newFolder, quickOpen, renameEntry, showSidebar, uploadFiles } from "./sidebar";
 import iconUrl from "../src-tauri/icons/icon.svg?url";
 import { addCitation } from "./cite";
+import { copyAsLatex, exportNotePdf, isNote, newNote, notePrefs, quickNote, refreshNotes, todaysNote } from "./notes";
 import { activeEditor, closeSide, openToSide, sideOpen } from "./split";
 import { loadProfile } from "./profile";
 import { renderProblemCount } from "./statusbar";
@@ -92,6 +93,10 @@ register(
   { id: "file.newFolder", group: "File", title: "New Folder…", run: () => newFolder(), enabled: hasProject },
   { id: "file.rename", group: "File", title: "Rename…", run: () => renameEntry(current!, false), enabled: hasFile },
   { id: "file.trash", group: "File", title: "Move to Trash", run: () => deleteEntry(current!, false), enabled: hasFile },
+  { id: "file.newNote", group: "File", title: "New Note…", run: newNote, enabled: hasProject },
+  { id: "file.todaysNote", group: "File", title: "Today's Note", keys: "Mod-Alt-t", run: todaysNote, enabled: hasProject },
+  { id: "file.quickNote", group: "File", title: "Quick Note…", keys: "Mod-Alt-n", run: quickNote, enabled: hasProject },
+  { id: "file.notePdf", group: "File", title: "Export Note as PDF", run: exportNotePdf, enabled: () => isNote(activeEditor()?.dom.dataset.path) },
   { id: "file.open", group: "File", title: "Open Project…", keys: "Mod-o", run: openFolder },
   { id: "file.newProject", group: "File", title: "New Project…", run: newProject },
   { id: "file.save", group: "File", title: "Save", keys: "Mod-s", run: saveFile, enabled: () => !!current && !VIEWABLE.test(current) && !/\.(csv|tsv)$/i.test(current) },
@@ -132,6 +137,12 @@ register(
   { id: "view.symbols", group: "View", title: "Show Symbols", enabled: hasProject, run: () => showSidebar("symbols") },
   { id: "edit.cite", group: "Edit", title: "Add Citation by DOI or arXiv ID…", keys: "Mod-Shift-c", enabled: hasProject, run: addCitation },
   { id: "view.math", group: "View", title: "Maths Preview", enabled: hasProject, checked: () => settings.mathPreview, run: () => updateSettings({ mathPreview: !settings.mathPreview }) },
+  { id: "view.notes", group: "View", title: "Show Notes", enabled: hasProject, run: () => showSidebar("notes") },
+  {
+    id: "view.livePreview", group: "View", title: "Render Maths in Notes", enabled: hasProject, checked: () => notePrefs.live,
+    run: () => { notePrefs.live = !notePrefs.live; refreshNotes(view, activeEditor()); },
+  },
+  { id: "edit.copyLatex", group: "Edit", title: "Copy Note as LaTeX", enabled: () => isNote(activeEditor()?.dom.dataset.path), run: copyAsLatex },
   { id: "view.review", group: "View", title: "Show Review", enabled: hasProject, run: () => showSidebar("review") },
   { id: "file.upload", group: "File", title: "Upload Files…", enabled: hasProject, run: () => uploadFiles() },
   { id: "view.git", group: "View", title: "Show Git", enabled: hasProject, run: () => showSidebar("git") },
@@ -265,23 +276,23 @@ const MENU_ICON = {
 };
 
 createMenubar($("menubar"), [
-  { title: "File", icon: MENU_ICON.file, entries: ["file.new", "file.newNotebook", "file.newFolder", "file.upload", "-", "file.newProject", "file.open", { title: "Open Recent", icon: ICONS.recent, submenu: recentEntries }, "-", "file.save", "file.rename", "file.trash", "-", "file.export", "file.reveal", "-", "file.closeTab", "file.close"] },
-  { title: "Edit", icon: MENU_ICON.edit, entries: ["edit.undo", "edit.redo", "-", "edit.cut", "edit.copy", "edit.paste", "edit.selectAll", "-", "edit.find", "edit.findInProject", "edit.comment", "-", "edit.cite"] },
+  { title: "File", icon: MENU_ICON.file, entries: ["file.new", "file.newNotebook", "file.newFolder", "file.upload", "-", "file.newNote", "file.todaysNote", "file.quickNote", "file.notePdf", "-", "file.newProject", "file.open", { title: "Open Recent", icon: ICONS.recent, submenu: recentEntries }, "-", "file.save", "file.rename", "file.trash", "-", "file.export", "file.reveal", "-", "file.closeTab", "file.close"] },
+  { title: "Edit", icon: MENU_ICON.edit, entries: ["edit.undo", "edit.redo", "-", "edit.cut", "edit.copy", "edit.paste", "edit.selectAll", "-", "edit.find", "edit.findInProject", "edit.comment", "-", "edit.cite", "edit.copyLatex"] },
   {
     title: "View",
     icon: MENU_ICON.view,
     entries: [
       "view.palette", "view.quickOpen", "-",
-      "view.files", "edit.findInProject", "view.figures", "view.outline", "view.git", "view.references", "view.symbols", "view.review", "-",
+      "view.files", "edit.findInProject", "view.figures", "view.outline", "view.git", "view.references", "view.symbols", "view.notes", "view.review", "-",
       "view.openSide", "view.closeSide", "-",
       "view.sidebar", "view.preview", "view.log", "view.terminal", "-",
       { title: "Theme", icon: ICONS.theme, submenu: () => ["view.themeDark", "view.themeLight"] }, "-",
-      "view.vim", "view.relativeNumbers", "view.spell", "view.math", "-",
+      "view.vim", "view.relativeNumbers", "view.spell", "view.math", "view.livePreview", "-",
       "view.zoomIn", "view.zoomOut", "view.zoomReset", "-",
       "view.pdfZoomIn", "view.pdfZoomOut", "view.pdfFit", "view.pdfFind",
     ],
   },
-  { title: "Build", icon: MENU_ICON.build, entries: ["build.compile", "build.compileOnSave", "build.showInPdf", "build.showInSource", "-", "build.runNotebooks", "build.runCell", "build.restartKernel", "-", "build.runFile", "build.stop", "view.terminal", "-", "view.log", "build.openPdf"] },
+  { title: "Build", icon: MENU_ICON.build, entries: ["build.compile", "build.compileOnSave", "build.showInPdf", "build.showInSource", "-", "build.runNotebooks", "build.runCell", "build.restartKernel", "-", "build.runFile", "build.stop", "view.terminal", "-", "view.log", "build.openPdf", "-"] },
   { title: "Help", icon: MENU_ICON.help, entries: ["help.shortcuts", "help.about"] },
 ]);
 
@@ -302,6 +313,7 @@ $("about").addEventListener("click", (e) => { if (e.target === e.currentTarget) 
 $("tab-references").onclick = () => showSidebar("references");
 $("tab-symbols").onclick = () => showSidebar("symbols");
 $("side-add-cite").onclick = addCitation;
+$("tab-notes").onclick = () => showSidebar("notes");
 $("tab-review").onclick = () => showSidebar("review");
 $("side-upload").onclick = () => uploadFiles();
 $("tab-git").onclick = () => showSidebar("git");

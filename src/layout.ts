@@ -22,10 +22,22 @@ export function applySizes() {
   layoutEl.style.setProperty("--sidebar-w", `${sizes.sidebar}px`);
   layoutEl.style.setProperty("--pdf-w", `${(sizes.pdf * 100).toFixed(2)}%`);
   layoutEl.classList.toggle("no-sidebar", sizes.hideSidebar);
-  layoutEl.classList.toggle("no-preview", sizes.hidePreview);
+  layoutEl.classList.toggle("no-preview", sizes.hidePreview || paperless);
+}
+
+/** A project without a paper (only notes) has nothing to preview; the pane stays out of the way
+ *  until asked for, without changing the saved layout. */
+let paperless = false;
+export function setPaperless(value: boolean) {
+  paperless = value;
+  applySizes();
 }
 
 export function togglePane(which: "sidebar" | "preview") {
+  if (which === "preview" && paperless) {
+    paperless = false;
+    if (!sizes.hidePreview) return applySizes();
+  }
   if (which === "sidebar") sizes.hideSidebar = !sizes.hideSidebar;
   else sizes.hidePreview = !sizes.hidePreview;
   applySizes();

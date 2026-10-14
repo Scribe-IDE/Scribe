@@ -9,6 +9,7 @@ import { $, assignDirty, baseName, current, dirty, mainFile, renderCrumb, root, 
 import { createEditorState, prefEffects, view } from "./editor";
 import { isNotebook, leaveNotebook, saveNotebook, stopKernel, updateNotebookView } from "./notebook";
 import { resetPdf } from "./preview";
+import { setPaperless } from "./layout";
 import { restoreCursor, restoreSession, saveSession } from "./session";
 import { loadSettings, resetSettings, toggleSettings } from "./settings";
 import { closeSide, sideFile } from "./split";
@@ -60,8 +61,13 @@ export async function openProject(path: string) {
   setMainFile(files.includes("main.tex") ? "main.tex" : files.find((f) => f.endsWith(".tex") && f !== VALUES_TEX) ?? "main.tex");
   await loadSettings(); // before the file list is drawn: it holds the saved file order
   // Back to where this project was left; a project opened for the first time starts on its paper.
+  const hasPaper = files.some((f) => f.endsWith(".tex"));
+  setPaperless(!hasPaper);
   if (!(await restoreSession(files))) {
+    // A notes project starts on its index, its readme, or any note.
+    const note = files.find((f) => /(^|\/)index\.md$/i.test(f)) ?? files.find((f) => /^readme\.md$/i.test(f)) ?? files.find((f) => /\.md$/i.test(f));
     if (files.includes(mainFile)) await openFile(mainFile);
+    else if (!hasPaper && note) await openFile(note);
     else showNoFile();
   }
   refreshIndex().catch(() => {});

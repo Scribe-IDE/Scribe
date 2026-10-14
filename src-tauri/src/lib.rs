@@ -181,6 +181,44 @@ fn write_file(root: String, rel: String, content: String) -> Result<(), String> 
     std::fs::rename(&tmp, &path).map_err(|e| e.to_string())
 }
 
+/// Undo encodeURIComponent: header values must be ASCII, paths need not be.
+fn percent_decode(s: &str) -> Result<String, String> {
+    let bytes = s.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            let hex = std::str::from_utf8(&bytes[i + 1..i + 3]).map_err(|e| e.to_string())?;
+            out.push(u8::from_str_radix(hex, 16).map_err(|_| format!("bad escape %{hex}"))?);
+            i += 3;
+        } else {
+            out.push(bytes[i]);
+            i += 1;
+        }
+    }
+    String::from_utf8(out).map_err(|e| e.to_string())
+}
+
+/// Writes bytes sent as the raw request body (an image pasted into a note). The project and
+/// the path come in the `x-root` / `x-rel` headers, percent-encoded.
+#[tauri::command]
+fn write_binary(request: tauri::ipc::Request<'_>) -> Result<(), String> {
+    let header = |name: &str| -> Result<String, String> {
+        let value = request.headers().get(name).ok_or_else(|| format!("missing {name}"))?;
+        percent_decode(value.to_str().map_err(|e| e.to_string())?)
+    };
+    let tauri::ipc::InvokeBody::Raw(bytes) = request.body() else {
+        return Err("expected the file's bytes".into());
+    };
+    let path = resolve(&header("x-root")?, &header("x-rel")?)?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let tmp = path.with_extension("scribe-tmp");
+    std::fs::write(&tmp, bytes).map_err(|e| e.to_string())?;
+    std::fs::rename(&tmp, &path).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn read_binary(root: String, rel: String) -> Result<tauri::ipc::Response, String> {
     let bytes = std::fs::read(resolve(&root, &rel)?).map_err(|e| e.to_string())?;
@@ -2022,7 +2060,7 @@ pub fn run() {
             parse_notebook, run_notebook, generate_style,
             git_status, git_branch, git_overview, git_diff, git_commit, git_push, git_init, git_identity, search_project, read_settings, write_settings,
             kernel_start, kernel_run_cell, kernel_stop,
-            spell_available, spell_check, spell_suggest, spell_learn, fetch_bibtex, export_bundle,
+            spell_available, spell_check, spell_suggest, spell_learn, fetch_bibtex, export_bundle, write_binary,
             python_bin, check_tools, pty_start, pty_write, pty_resize, pty_kill,
             synctex_edit, synctex_view
         ])
@@ -2330,6 +2368,13 @@ mod tests {
         assert_eq!(view.page, 2);
         assert!((view.y - 416.5).abs() < 0.01 && (view.x - 125.8).abs() < 0.01);
         assert!(parse_synctex_view("nothing").is_err());
+    }
+
+    #[test]
+    fn percent_decoding_round_trips_paths() {
+        assert_eq!(percent_decode("notes/%CE%9C%CE%AC%CE%B8%CE%B7%CE%BC%CE%B1%201.md").unwrap(), "notes/Μάθημα 1.md");
+        assert_eq!(percent_decode("plain/path.png").unwrap(), "plain/path.png");
+        assert!(percent_decode("%zz").is_err());
     }
 
     #[test]

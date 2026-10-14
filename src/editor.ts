@@ -20,6 +20,7 @@ import { tags as t } from "@lezer/highlight";
 import { compile, saveFile } from "./build";
 import { $, current, setDirty } from "./core";
 import { mathPreview } from "./mathpreview";
+import { isNote, notesCompletion, notesExtension } from "./notes";
 import { outlineChanged } from "./outline";
 import { spellExtension } from "./spell";
 import { reportCursor } from "./statusbar";
@@ -294,6 +295,7 @@ export function completionFor(path: string): Extension {
   if (/\.(tex|sty|cls|bib)$/.test(path)) {
     return autocompletion({ override: [latexCompletion] });
   }
+  if (isNote(path)) return autocompletion({ override: [notesCompletion] });
   // Python gets built-in completions from the language mode
   return autocompletion();
 }
@@ -321,6 +323,7 @@ export function createEditorState(doc: string, path: string, hooks: EditorHooks 
       completionFor(path),
       spellExtension(path),
       mathPreview(path),
+      notesExtension(path),
       EditorView.editorAttributes.of({ "data-path": path }), // lets helpers know what kind of file this is
       themeConf.of(editorTheme(editorPrefs.dark)),
       EditorView.lineWrapping,

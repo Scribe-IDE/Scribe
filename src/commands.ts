@@ -67,6 +67,8 @@ const normalize = (keys: string) => {
 function comboOf(e: KeyboardEvent): string | null {
   if (!(e.metaKey || e.ctrlKey)) return null; // every global shortcut uses ⌘/Ctrl
   let key = e.key.toLowerCase();
+  // ⌥ changes the character on a Mac (⌥N types ˜), so with ⌥ held go by the physical key.
+  if (e.altKey && /^Key[A-Z]$/.test(e.code)) key = e.code.slice(3).toLowerCase();
   if (key === "+") key = "="; // ⌘+ and ⌘= both zoom in
   if (key === "-") key = "minus";
   const mods = ["mod"];

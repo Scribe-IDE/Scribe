@@ -21,7 +21,7 @@ export function problemSummary(): string {
 }
 
 /** Replaces the problem list. `log` is the raw compiler output, kept behind the Output tab. */
-export function setProblems(next: Problem[], log: string, visible: boolean) {
+export function setProblems(next: Problem[], log: string, visible: boolean, title = "Compile") {
   problems = next;
   logEl.textContent = log;
 
@@ -47,12 +47,12 @@ export function setProblems(next: Problem[], log: string, visible: boolean) {
   if (!problems.length) {
     const none = document.createElement("div");
     none.className = "empty";
-    none.textContent = "No problems found in the last compile.";
+    none.textContent = title === "Compile" ? "No problems found in the last compile." : "Nothing to fix.";
     frag.appendChild(none);
   }
   list.replaceChildren(frag);
 
-  $("log-title").textContent = "Compile";
+  $("log-title").textContent = title;
   $("log-tab-problems").textContent = problems.length ? `Problems (${problems.length})` : "Problems";
   // With nothing parsed out of a failed compile, the raw output is the only useful thing to show.
   setLogView(problems.length || !log ? "problems" : "output");

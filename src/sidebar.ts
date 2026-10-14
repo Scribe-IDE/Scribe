@@ -11,6 +11,7 @@ import { renderGallery } from "./gallery";
 import { renderGit } from "./git";
 import { sizes, togglePane } from "./layout";
 import { emptyIpynb } from "./notebook";
+import { renderNotes } from "./notes";
 import { renderOutline } from "./outline";
 import { renderReview } from "./review";
 import { listDirs, listFiles, openFile, revealLine, save } from "./project";
@@ -428,16 +429,16 @@ export async function refreshFiles() {
 }
 
 // ---------- sidebar tabs ----------
-export type SidebarTab = "files" | "search" | "figures" | "git" | "references" | "symbols" | "review";
+export type SidebarTab = "files" | "search" | "figures" | "git" | "references" | "symbols" | "notes" | "review";
 
 const PANEL: Record<SidebarTab, string> = {
   files: "files-panel", search: "search-panel", figures: "figures-panel", git: "git-panel",
-  references: "references-panel", symbols: "symbols-panel", review: "review-panel",
+  references: "references-panel", symbols: "symbols-panel", notes: "notes-panel", review: "review-panel",
 };
 
 const PANEL_NAME: Record<SidebarTab, string> = {
   files: "File tree", search: "Search", figures: "Figures and values", git: "Git", references: "References",
-  symbols: "Symbols", review: "Review",
+  symbols: "Symbols", notes: "Notes", review: "Review",
 };
 
 /** The panel showing in the sidebar. */
@@ -454,12 +455,13 @@ export function showSidebar(which: SidebarTab) {
   $("side-name").textContent = PANEL_NAME[which];
   // Each panel shows its own actions: creating things beside the file list, refresh elsewhere.
   $("side-new").hidden = $("side-new-folder").hidden = $("side-upload").hidden = which !== "files";
-  $("side-refresh").hidden = which === "files" || which === "search" || which === "symbols";
+  $("side-refresh").hidden = which === "files" || which === "search" || which === "symbols" || which === "notes";
   $("side-add-cite").hidden = which !== "references";
   $("side-refresh").onclick = () => showSidebar(which);
   if (which === "figures") renderGallery();
   if (which === "files") renderOutline();
   if (which === "review") renderReview();
+  if (which === "notes") renderNotes();
   if (which === "references") renderReferences();
   if (which === "symbols") renderSymbols();
   if (which === "git") renderGit();

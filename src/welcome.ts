@@ -200,7 +200,6 @@ export function setRecent(list: string[]) {
 export function renderRecent() {
   const recent = getRecent();
   $("recent").hidden = recent.length === 0;
-  // "back" only for someone who has been here before
   const list = $("recent-list");
   list.replaceChildren();
   for (const path of recent) {
@@ -273,6 +272,7 @@ export async function renderSetup() {
   );
 }
 
+// Shown on the welcome screen when that's where the import started, and in the status line.
 export function renderShortcuts() {
   const list = $("shortcut-list");
   for (const id of ["build.compile", "build.runNotebooks", "view.palette", "view.quickOpen", "edit.findInProject"]) {
@@ -319,7 +319,8 @@ export async function newProject() {
     fail(e);
     return;
   }
-  if (files.some((f) => f.endsWith(".tex"))) {
+  // Already a paper or a set of notes (a lone readme doesn't count): open it as it is.
+  if (files.some((f) => f.endsWith(".tex") || (/\.md$/i.test(f) && !/(^|\/)readme\.md$/i.test(f)))) {
     await openProject(picked);
     return;
   }

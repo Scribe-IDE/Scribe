@@ -1,7 +1,8 @@
 // References: the bibliography as a list, and adding an entry from a DOI or an arXiv ID.
 import { invoke } from "@tauri-apps/api/core";
 import { $, current, dirty, root, setStatus } from "./core";
-import { ICONS } from "./icons";
+import { COMMAND_ICONS, ICONS } from "./icons";
+import { openCitationNote } from "./notes";
 import { promptInput } from "./palette";
 import { listFiles, openFile, revealLine, save } from "./project";
 import { activeEditor } from "./split";
@@ -116,7 +117,14 @@ export async function renderReferences() {
     open.setAttribute("aria-label", `Open ${entry.key} in ${entry.file}`);
     open.onclick = () => revealLine(entry.file, entry.line);
 
-    row.append(cite, open);
+    const notes = document.createElement("button");
+    notes.className = "icon-btn";
+    notes.innerHTML = COMMAND_ICONS["file.newNote"];
+    notes.title = `Your notes on ${entry.key}`;
+    notes.setAttribute("aria-label", `Notes on ${entry.key}`);
+    notes.onclick = () => openCitationNote(entry.key);
+
+    row.append(cite, notes, open);
     frag.appendChild(row);
   }
   panel.replaceChildren(frag);
