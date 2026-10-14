@@ -6,7 +6,6 @@ import { redo, selectAll, toggleComment, undo } from "@codemirror/commands";
 import { openSearchPanel } from "@codemirror/search";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { readText } from "@tauri-apps/plugin-clipboard-manager";
-import { message } from "@tauri-apps/plugin-dialog";
 import { openPath, revealItemInDir } from "@tauri-apps/plugin-opener";
 import { allCommands, formatKeys, installKeybindings, isEnabled, register, runCommand } from "./commands";
 import { COMMAND_ICONS, ICONS } from "./icons";
@@ -182,9 +181,7 @@ register(
   { id: "help.shortcuts", group: "Help", title: "Keyboard Shortcuts", run: commandPalette },
   {
     id: "help.about", group: "Help", title: "About Scribe",
-    run: async () => {
-      await message("Version 0.1.0\n\nA LaTeX and Python editor where notebook figures flow straight into the paper.", { title: "Scribe", kind: "info" });
-    },
+    run: () => { $<HTMLDialogElement>("about").showModal(); },
   },
 );
 
@@ -270,7 +267,15 @@ $("welcome-new").onclick = newProject;
 $("tab-files").onclick = () => showSidebar("files");
 $("tab-search").onclick = () => showSidebar("search");
 $("tab-figures").onclick = () => showSidebar("figures");
-$("tab-outline").onclick = () => showSidebar("outline");
+$<HTMLImageElement>("about-icon").src = iconUrl;
+$("about-close").onclick = () => $<HTMLDialogElement>("about").close();
+// A click on the dimmed area around the dialog closes it.
+$("about").addEventListener("click", (e) => { if (e.target === e.currentTarget) $<HTMLDialogElement>("about").close(); });
+$("tab-references").onclick = () => showSidebar("references");
+$("tab-symbols").onclick = () => showSidebar("symbols");
+$("side-add-cite").onclick = addCitation;
+$("tab-review").onclick = () => showSidebar("review");
+$("side-upload").onclick = () => uploadFiles();
 $("tab-git").onclick = () => showSidebar("git");
 $("side-new").onclick = () => runCommand("file.new");
 $("side-new-folder").onclick = () => runCommand("file.newFolder");
@@ -316,6 +321,8 @@ try {
 } catch { /* not running inside Tauri */ }
 
 renderProblemCount();
+onProfileChange(renderRecent); // the greeting uses the name
+loadProfile();
 renderRecent();
 renderShortcuts();
 renderSetup();

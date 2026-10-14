@@ -5,6 +5,7 @@ import { formatKeys, getCommand } from "./commands";
 import { ICONS } from "./icons";
 import { $, appEl, baseName, welcomeEl } from "./core";
 import { openPalette } from "./palette";
+import { profile } from "./profile";
 import { openProject } from "./project";
 import { TEMPLATES } from "./templates";
 
@@ -199,6 +200,9 @@ export function setRecent(list: string[]) {
 export function renderRecent() {
   const recent = getRecent();
   $("recent").hidden = recent.length === 0;
+  // "back" only for someone who has been here before
+  const first = profile.name.trim().split(/\s+/)[0];
+  $("welcome-greeting").textContent = `${recent.length ? "Welcome back" : "Welcome"}${first ? `, ${first}` : ""}!`;
   const list = $("recent-list");
   list.replaceChildren();
   for (const path of recent) {
@@ -241,15 +245,13 @@ export function setupRow(ok: boolean, name: string, detail: string): HTMLElement
   const icon = document.createElement("span");
   icon.className = "row-icon";
   icon.innerHTML = ok ? ICONS.check : ICONS.warn;
-  const text = document.createElement("span");
   const title = document.createElement("span");
   title.className = "setup-name";
   title.textContent = name;
   const sub = document.createElement("span");
   sub.className = "setup-detail";
   sub.textContent = detail;
-  text.append(title, sub);
-  li.append(icon, text);
+  li.append(icon, title, sub);
   return li;
 }
 
@@ -265,10 +267,10 @@ export async function renderSetup() {
   }
   list.replaceChildren(
     tools.tex
-      ? setupRow(true, "LaTeX", `Papers compile with ${tools.tex}.`)
+      ? setupRow(true, "LaTeX", tools.tex)
       : setupRow(false, "LaTeX not found", "Install Tectonic (cargo install tectonic) or TeX Live to compile papers."),
     tools.python
-      ? setupRow(true, "Python", `Notebooks and scripts run with ${tools.python}.`)
+      ? setupRow(true, "Python", tools.python)
       : setupRow(false, "Python not found", "Install Python 3 to run notebooks and produce figures."),
   );
 }
@@ -288,6 +290,17 @@ export function renderShortcuts() {
     li.append(icon, command.title.replace("…", ""), keys);
     list.appendChild(li);
   }
+}
+
+// Templates leave the author blank or as a placeholder; fill in the profile when there is one.
+function signed(content: string): string {
+  if (!profile.name) return content;
+  return content
+    .replace("\\author{}", () => `\\author{${profile.name}}`)
+    .replace(/\\author\{(Your Name|First Author)\}/, () => `\\author{${profile.name}}`)
+    .replace("\\IEEEauthorblockN{First Author}", () => `\\IEEEauthorblockN{${profile.name}}`)
+    .replace("email@example.org", () => profile.email || "email@example.org")
+    .replace(/\\institution\{University\}/, () => `\\institution{${profile.affiliation || "University"}}`);
 }
 
 // Pick (or create) a folder. A folder that already has a paper just opens; an empty one is
@@ -322,7 +335,7 @@ export async function newProject() {
       run: async () => {
         try {
           for (const [rel, content] of Object.entries(template.files)) {
-            if (!files.includes(rel)) await invoke("write_file", { root: picked, rel, content }); // never overwrite
+            if (!files.includes(rel)) await invoke("write_file", { root: picked, rel, content: signed(content) }); // never overwrite
           }
         } catch (e) {
           fail(e);

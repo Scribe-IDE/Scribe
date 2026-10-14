@@ -833,6 +833,26 @@ async fn git_overview(root: String) -> Result<GitOverview, String> {
     .map_err(|e| e.to_string())?
 }
 
+#[derive(Serialize)]
+struct GitIdentity {
+    name: String,
+    email: String,
+}
+
+/// The name and email git is configured with, to start the profile from. Read only.
+#[tauri::command]
+fn git_identity() -> GitIdentity {
+    let read = |key: &str| {
+        Command::new("git")
+            .args(["config", "--global", key])
+            .output()
+            .ok()
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+            .unwrap_or_default()
+    };
+    GitIdentity { name: read("user.name"), email: read("user.email") }
+}
+
 /// What changed in one file since the last commit, as a unified diff.
 #[tauri::command]
 fn git_diff(root: String, rel: String) -> Result<String, String> {
@@ -853,14 +873,22 @@ fn git_diff(root: String, rel: String) -> Result<String, String> {
 
 /// Commits every change in the project folder.
 #[tauri::command]
-async fn git_commit(root: String, message: String) -> Result<String, String> {
+async fn git_commit(root: String, message: String, name: Option<String>, email: Option<String>) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
         if message.trim().is_empty() {
             return Err("Write a commit message first.".into());
         }
         let root_dir = Path::new(&root).canonicalize().map_err(|e| e.to_string())?;
         git_run(&root_dir, &["add", "-A", "--", "."])?;
-        git_run(&root_dir, &["commit", "-m", message.trim()])
+        // The profile's name and email sign the commit when both are set; otherwise git's own
+        // configuration decides, as it would on the command line.
+        match (name.filter(|n| !n.trim().is_empty()), email.filter(|e| !e.trim().is_empty())) {
+            (Some(name), Some(email)) => git_run(
+                &root_dir,
+                &["-c", &format!("user.name={}", name.trim()), "-c", &format!("user.email={}", email.trim()), "commit", "-m", message.trim()],
+            ),
+            _ => git_run(&root_dir, &["commit", "-m", message.trim()]),
+        }
     })
     .await
     .map_err(|e| e.to_string())?
@@ -1535,8 +1563,9 @@ mod tests {
         assert!(git_diff(root.clone(), "main.tex".into()).unwrap().contains("+one"));
 
         // Empty messages are refused; a real one commits everything.
-        assert!(tauri::async_runtime::block_on(git_commit(root.clone(), "  ".into())).is_err());
-        tauri::async_runtime::block_on(git_commit(root.clone(), "First".into())).unwrap();
+        assert!(tauri::async_runtime::block_on(git_commit(root.clone(), "  ".into(), None, None)).is_err());
+        tauri::async_runtime::block_on(git_commit(root.clone(), "First".into(), Some("Ada Lovelace".into()), Some("ada@example.org".into()))).unwrap();
+        assert_eq!(git_text(&root_dir, &["log", "-1", "--pretty=%an <%ae>"]).as_deref(), Some("Ada Lovelace <ada@example.org>"));
         assert!(git_changes(&root_dir).is_empty());
 
         write_file(root.clone(), "main.tex".into(), "one\ntwo\n".into()).unwrap();

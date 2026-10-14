@@ -1,6 +1,7 @@
 // Git panel: what changed, a diff per file, commit, push and recent history.
 import { invoke } from "@tauri-apps/api/core";
 import { $, root, setStatus } from "./core";
+import { profile } from "./profile";
 import { refreshFiles } from "./sidebar";
 import { showInSide } from "./split";
 
@@ -98,7 +99,7 @@ export async function renderGit() {
   message.oninput = () => { draft = message.value; sync(); };
   commit.onclick = async () => {
     const text = message.value;
-    if (await act(commit, "Committing…", "git_commit", { message: text }, "Committed")) draft = "";
+    if (await act(commit, "Committing…", "git_commit", { message: text, name: profile.name || null, email: profile.email || null }, "Committed")) draft = "";
   };
   commit.title = "Commit every change in this project";
   sync();

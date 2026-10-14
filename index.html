@@ -10,8 +10,7 @@
   <section id="welcome">
     <div class="welcome-drag" data-tauri-drag-region></div>
     <div class="welcome-panel">
-      <h1 class="welcome-title">Scribe</h1>
-      <p class="welcome-tagline">Write LaTeX, run Python, and let the figures land in the paper.</p>
+      <h1 class="welcome-title"><span id="welcome-greeting">Welcome!</span> <span class="wave" aria-hidden="true">👋</span></h1>
       <div class="welcome-actions">
         <button id="welcome-open" class="btn btn-primary btn-lg">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 4.25a1 1 0 011-1h3l1.5 1.5H13a1 1 0 011 1v6.5a1 1 0 01-1 1H3a1 1 0 01-1-1v-8z"/></svg>
@@ -35,7 +34,7 @@
         <h2>Shortcuts</h2>
         <ul id="shortcut-list" class="welcome-list shortcuts"></ul>
       </section>
-      <p class="welcome-version">Version 0.1</p>
+      <p class="welcome-version">Version 0.1 <span aria-hidden="true">·</span> © 2026 Georgios Kiritsis</p>
     </div>
     <div class="welcome-stage" aria-hidden="true">
       <pre id="typewriter" class="typewriter"></pre>
@@ -45,6 +44,7 @@
 
   <div id="app" class="hidden">
     <header id="titlebar" data-tauri-drag-region>
+      <button id="profile-btn" class="avatar" aria-haspopup="true" aria-expanded="false" aria-label="Profile"></button>
       <span class="tb-drag" data-tauri-drag-region></span>
       <button id="btn-open" class="crumb-project" title="Open another project (⌘O)">
         <span id="project-name"></span>

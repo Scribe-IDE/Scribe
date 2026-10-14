@@ -1610,14 +1610,74 @@ body.dragging-file #files * { cursor: grabbing; }
 
 .pdf-empty p:first-child { color: var(--fg-dim); font-weight: 500; }
 
+/* ── profile ── */
+.avatar {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  background: var(--accent-dim);
+  transition: background 150ms ease, color 150ms ease;
+}
+
+.avatar:hover, .avatar[aria-expanded="true"] { color: var(--on-accent); background: var(--accent); }
+
+#profile-popover {
+  position: fixed;
+  top: 34px;
+  left: 72px;
+  z-index: 20;
+  width: 280px;
+  padding: 12px;
+  background: var(--raised);
+  border: 1px solid var(--border-hi);
+  border-radius: var(--r-lg);
+  animation: pop-in 140ms cubic-bezier(.16, 1, .3, 1);
+}
+
+.profile-note { margin-bottom: 10px; font-size: 12px; line-height: 1.5; color: var(--muted); }
+.profile-field { display: block; margin-top: 8px; }
+.profile-field span { display: block; margin-bottom: 4px; font-size: 12px; color: var(--fg-dim); }
+.profile-field input { width: 100%; }
+
+/* ── about ── */
+#about {
+  width: min(400px, calc(100vw - 48px));
+  margin: auto;
+  padding: 32px 32px 24px;
+  color: var(--fg);
+  background: var(--raised);
+  border: 1px solid var(--border-hi);
+  border-radius: 14px;
+  text-align: center;
+  animation: fade-in 160ms ease-out;
+}
+
+#about::backdrop { background: rgba(0, 0, 0, .55); }
+#about img { display: block; margin: 0 auto 12px; }
+#about h2 { font: 700 28px/1.1 var(--font-display); }
+#about p { margin-top: 14px; font-size: 13.5px; line-height: 1.6; color: var(--fg-dim); text-wrap: pretty; }
+#about .about-version { margin-top: 4px; font-size: 12px; color: var(--faint); }
+#about .about-promise { font-weight: 600; color: var(--fg); }
+#about .about-sign { margin-top: 18px; font: italic 400 15px var(--font-display); color: var(--muted); }
+#about .btn { margin: 22px auto 0; }
+
 /* ── settings popover ── */
 #settings-popover {
   position: fixed;
-  top: 48px;
+  top: 80px;
   right: 8px;
   z-index: 20;
-  width: 248px;
-  padding: 6px 12px;
+  width: 288px;
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  padding: 4px 12px 8px;
   background: var(--raised);
   border: 1px solid var(--border-hi);
   border-radius: var(--r-lg);
@@ -1691,17 +1751,25 @@ body.dragging-file #files * { cursor: grabbing; }
 }
 
 .welcome-title {
-  font: 700 44px/1 var(--font-display);
+  margin-bottom: 32px;
+  font: 700 36px/1.12 var(--font-display);
   letter-spacing: -0.01em;
+  text-wrap: balance; /* with a name in it the greeting runs to two lines */
 }
 
-.welcome-tagline {
-  max-width: 30ch;
-  margin: 16px 0 32px;
-  font-size: 15px;
-  line-height: 1.6;
-  color: var(--muted);
-  text-wrap: pretty;
+/* the hand waves twice when the screen appears, pivoting at the wrist */
+.wave {
+  display: inline-block;
+  font-size: 0.86em;
+  transform-origin: 70% 75%;
+  animation: wave 1.8s ease-in-out 500ms 1;
+}
+
+@keyframes wave {
+  0%, 60%, 100% { rotate: 0deg; }
+  10%, 30% { rotate: 16deg; }
+  20%, 40% { rotate: -10deg; }
+  50% { rotate: 12deg; }
 }
 
 .welcome-actions { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -1775,12 +1843,13 @@ body.dragging-file #files * { cursor: grabbing; }
 #recent-list li:hover .icon-btn,
 #recent-list .icon-btn:focus-visible { opacity: 1; }
 
-.setup li { align-items: flex-start; padding-top: 6px; padding-bottom: 6px; }
-.setup .row-icon { margin-top: 1px; }
+/* Found tools are one quiet line; a missing one gets a second line saying what to install. */
+.setup li.missing { flex-wrap: wrap; row-gap: 2px; padding-top: 6px; padding-bottom: 6px; }
 .setup .ok .row-icon { color: var(--ok); }
 .setup .missing .row-icon { color: var(--accent); }
 .setup .setup-name { font-weight: 500; color: var(--fg); }
-.setup .setup-detail { display: block; font-size: 12px; color: var(--muted); line-height: 1.5; }
+.setup .setup-detail { margin-left: auto; font-size: 12px; color: var(--faint); }
+.setup .missing .setup-detail { flex-basis: 100%; margin-left: 24px; color: var(--muted); line-height: 1.5; }
 
 .shortcuts li { color: var(--fg-dim); }
 .shortcuts .shortcut-keys { margin-left: auto; font-size: 12px; letter-spacing: 0.06em; color: var(--faint); }
@@ -1843,7 +1912,7 @@ body.dragging-file #files * { cursor: grabbing; }
   text-align: center;
 }
 
-.paper-author { margin-top: 1.4cqh; text-align: center; font-size: 1.8cqh; }
+.paper-body .paper-author { margin-top: 1.4cqh; text-align: center; font-size: 1.8cqh; }
 
 .paper-abstract { margin: 2.6cqh 8cqw 0; font-size: 1.5cqh; text-align: justify; }
 .paper-abstract strong { display: block; margin-bottom: 0.5cqh; text-align: center; font-size: 1.5cqh; }
