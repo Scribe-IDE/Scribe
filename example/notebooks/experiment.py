@@ -1,15 +1,15 @@
 # %% [markdown]
 # # Optimiser comparison on two moons
-#
+# 
 # Everything the paper reports comes from this notebook. Figure cells become
 # `figures/<id>.pdf`; `nbval()`, `nbmath()` and `nbtable()` send numbers, formulas and the
 # results table to the text.
-#
+# 
 # Each optimiser minimises the cross-entropy loss $\mathcal{L}(\theta)$ of the same network.
 # Plain SGD steps along the mini-batch gradient $g_t$:
-#
+# 
 # $$\theta_{t+1} = \theta_t - \eta\, g_t$$
-#
+# 
 # Momentum and Adam change **how** that gradient is used, not what is being minimised.
 
 # %%
@@ -86,7 +86,7 @@ def train(optimiser, lr, seed):
     return p, np.array(history)
 
 # %%
-SETTINGS = {"SGD": 0.1, "Momentum": 0.1, "Adam": 0.01}
+SETTINGS = {"SGD": 0.6, "Momentum": 0.1, "Adam": 0.01}
 runs = {name: [train(name, lr, seed) for seed in SEEDS] for name, lr in SETTINGS.items()}
 
 def epochs_to(history, target=0.1):
