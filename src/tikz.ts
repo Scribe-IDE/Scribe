@@ -4,56 +4,37 @@
 import { invoke } from "@tauri-apps/api/core";
 import { EditorView } from "@codemirror/view";
 import * as pdfjs from "pdfjs-dist";
-import { current, mainFile, root, setStatus } from "./core";
-import { parseLog } from "./diagnostics";
-import { closeSide, showInSide } from "./split";
+import { clamp, current, mainFile, root, setStatus, showLog } from "./core";
+import { explain, parseLog } from "./diagnostics";
+import { closeSide, showInSide, sideFile } from "./split";
+import { pictureAt, previewDocument, unclosedParen } from "./tikzsource";
 
-const ENVS = "tikzpicture|tikzcd|circuitikz";
 const PREVIEW_TEX = "build/tikz/preview.tex";
-const CLASS = "\\documentclass[tikz,border=6pt]{standalone}";
-// Kept from the paper's preamble when the whole of it doesn't compile as a standalone document.
-const ESSENTIAL = /^\s*\\(usetikzlibrary|usepgfplotslibrary|tikzset|pgfplotsset|definecolor|colorlet|usepackage(\[[^\]]*\])?\{[^}]*\b(tikz|pgfplots|tikz-cd|circuitikz|xcolor|amsmath|amssymb|bm|siunitx)\b[^}]*\})/;
+const ZOOM_MIN = 0.25;
+const ZOOM_MAX = 6;
 
 interface CompileResult { ok: boolean; log: string; pdf: string | null; }
 
-/** The picture environment around `pos`: where it starts and ends. */
-export function pictureAt(doc: string, pos: number): { from: number; to: number } | null {
-  const re = new RegExp(`\\\\begin\\{(${ENVS})\\}`, "g");
-  let best: { from: number; to: number } | null = null;
-  for (let m = re.exec(doc); m; m = re.exec(doc)) {
-    if (m.index > pos) break;
-    const scan = new RegExp(`\\\\(begin|end)\\{${m[1]}\\}`, "g");
-    scan.lastIndex = m.index;
-    let depth = 0;
-    for (let s = scan.exec(doc); s; s = scan.exec(doc)) {
-      depth += s[1] === "begin" ? 1 : -1;
-      if (depth === 0) {
-        const to = s.index + s[0].length;
-        if (pos <= to) best = { from: m.index, to };
-        break;
-      }
-    }
-  }
-  return best;
-}
-
-/** The paper's preamble with its class swapped for standalone; `minimal` keeps only what pictures need. */
-export function previewDocument(paper: string, picture: string, minimal: boolean): { source: string; offset: number } {
-  const begin = paper.indexOf("\\begin{document}");
-  let preamble = begin < 0 ? "" : paper.slice(0, begin).replace(/^[ \t]*\\documentclass\s*(\[[^\]]*\])?\s*\{[^}]*\}[^\n]*\n?/m, "");
-  if (minimal) preamble = preamble.split("\n").filter((l) => ESSENTIAL.test(l)).join("\n");
-  // \input@path lets the picture's \input and \includegraphics find files from the project folder
-  const head = `${CLASS}\n\\makeatletter\\def\\input@path{{../../}}\\makeatother\n${preamble.trim()}\n\\begin{document}\n`;
-  return { source: `${head}${picture}\n\\end{document}\n`, offset: head.split("\n").length - 1 };
-}
-
 // ---------- the pane ----------
-let pane: { box: HTMLElement; note: HTMLElement; stage: HTMLElement; editor: EditorView } | null = null;
+interface Pane {
+  box: HTMLElement;
+  note: HTMLElement;
+  time: HTMLElement;
+  zoomLabel: HTMLElement;
+  stage: HTMLElement;
+  editor: EditorView;
+}
+let pane: Pane | null = null;
 let timer = 0;
 let running = false;
 let again = false;
 let lastSource = "";
+let lastLog = "";
 let lastPicture: { from: number; line: number } | null = null;
+/** The last picture that compiled, kept to redraw it at a new size. */
+let shownPdf: Uint8Array | null = null;
+/** 1 is "fit the pane"; the picture keeps its zoom while you type. */
+let zoom = 1;
 /** Preambles that only compile cut down to the essentials, so they skip the full attempt. */
 const minimalFor = new Set<string>();
 
@@ -65,43 +46,85 @@ async function paperText(editor: EditorView): Promise<string> {
   return invoke<string>("read_file", { root, rel: mainFile }).catch(() => "");
 }
 
-function note(text: string, kind: "" | "busy" | "err" = "", line?: number) {
+function jumpTo(line: number) {
+  const editor = pane!.editor;
+  const at = editor.state.doc.line(clamp(line, 1, editor.state.doc.lines));
+  editor.dispatch({ selection: { anchor: at.from }, effects: EditorView.scrollIntoView(at.from, { y: "center" }) });
+  editor.focus();
+}
+
+function note(text: string, kind: "" | "err" = "", line?: number, hint?: string) {
   if (!pane) return;
   pane.note.className = `tikz-note${kind ? ` ${kind}` : ""}`;
-  pane.note.replaceChildren(text);
+  if (!text) {
+    pane.note.replaceChildren();
+    return;
+  }
+  const message = document.createElement("span");
+  message.className = "tikz-message";
+  message.textContent = text;
+  pane.note.replaceChildren(message);
   if (line) {
     const jump = document.createElement("button");
     jump.className = "tikz-jump";
     jump.textContent = `Line ${line}`;
-    jump.onclick = () => {
-      const editor = pane!.editor;
-      const at = editor.state.doc.line(Math.min(line, editor.state.doc.lines));
-      editor.dispatch({ selection: { anchor: at.from }, effects: EditorView.scrollIntoView(at.from, { y: "center" }) });
-      editor.focus();
-    };
-    pane.note.append(" ", jump);
+    jump.onclick = () => jumpTo(line);
+    message.append(" ", jump);
+  }
+  if (hint) {
+    const more = document.createElement("span");
+    more.className = "tikz-hint";
+    more.textContent = hint;
+    pane.note.append(more);
   }
 }
 
-async function draw(rel: string) {
-  const bytes = await invoke<ArrayBuffer>("read_binary", { root, rel });
-  const pdf = await pdfjs.getDocument({ data: new Uint8Array(bytes) }).promise;
-  const page = await pdf.getPage(1);
-  const base = page.getViewport({ scale: 1 });
-  // as wide as the pane allows, but never more than twice its printed size
-  const width = Math.min(pane!.stage.clientWidth - 32, base.width * 2);
-  const dpr = window.devicePixelRatio || 1;
-  const vp = page.getViewport({ scale: (width / base.width) * dpr });
-  const canvas = document.createElement("canvas");
-  canvas.width = vp.width;
-  canvas.height = vp.height;
-  canvas.style.width = `${width}px`;
-  canvas.className = "tikz-picture";
-  await page.render({ canvasContext: canvas.getContext("2d")!, viewport: vp }).promise;
-  pdf.destroy();
-  if (open()) pane!.stage.replaceChildren(canvas);
+// ---------- drawing and zoom ----------
+let drawJob = 0;
+
+async function draw() {
+  if (!open() || !shownPdf) return;
+  const job = ++drawJob;
+  const pdf = await pdfjs.getDocument({ data: shownPdf.slice() }).promise;
+  try {
+    const page = await pdf.getPage(1);
+    const base = page.getViewport({ scale: 1 });
+    // fitting: as wide as the pane allows, but never more than twice its printed size
+    const fit = Math.max(40, Math.min(pane!.stage.clientWidth - 32, base.width * 2));
+    const width = fit * zoom;
+    const dpr = window.devicePixelRatio || 1;
+    const vp = page.getViewport({ scale: (width / base.width) * dpr });
+    const canvas = document.createElement("canvas");
+    canvas.width = vp.width;
+    canvas.height = vp.height;
+    canvas.style.width = `${width}px`;
+    canvas.className = "tikz-picture";
+    await page.render({ canvasContext: canvas.getContext("2d")!, viewport: vp }).promise;
+    if (job !== drawJob || !open()) return;
+    pane!.stage.replaceChildren(canvas);
+  } finally {
+    pdf.destroy();
+  }
 }
 
+let redrawTimer = 0;
+function redrawSoon() {
+  clearTimeout(redrawTimer);
+  redrawTimer = window.setTimeout(() => draw().catch(() => {}), 120);
+}
+
+function setZoom(next: number | "fit") {
+  if (!pane) return;
+  const before = zoom;
+  zoom = next === "fit" ? 1 : clamp(Math.round(next * 100) / 100, ZOOM_MIN, ZOOM_MAX);
+  pane.zoomLabel.textContent = `${Math.round(zoom * 100)}%`;
+  // scale what is there straight away; the sharp redraw follows
+  const canvas = pane.stage.querySelector<HTMLCanvasElement>("canvas");
+  if (canvas && before) canvas.style.width = `${(parseFloat(canvas.style.width) * zoom) / before}px`;
+  redrawSoon();
+}
+
+// ---------- compiling ----------
 async function compileNow() {
   if (!open() || !root) return;
   if (running) {
@@ -127,7 +150,8 @@ async function compileNow() {
 
   running = true;
   pane!.stage.classList.add("stale");
-  note("Drawing…", "busy");
+  pane!.time.textContent = "Drawing…";
+  const started = performance.now();
   try {
     let result = await invoke<CompileResult>("compile_snippet", { root, source: built.source });
     let problems = parseLog(result.log, PREVIEW_TEX).filter((p) => p.severity === "error");
@@ -138,15 +162,25 @@ async function compileNow() {
       problems = parseLog(result.log, PREVIEW_TEX).filter((p) => p.severity === "error");
       if (result.ok) minimalFor.add(preambleKey);
     }
+    lastLog = result.log;
     if (!open()) return;
+    pane!.time.textContent = `${((performance.now() - started) / 1000).toFixed(1)} s`;
     if (result.ok && result.pdf) {
-      await draw(result.pdf);
+      shownPdf = new Uint8Array(await invoke<ArrayBuffer>("read_binary", { root, rel: result.pdf }));
+      await draw();
       pane!.stage.classList.remove("stale");
       note("");
     } else {
-      const first = problems[0];
-      const inPicture = first?.line && first.line > built.offset ? startLine + first.line - built.offset - 1 : undefined;
-      note(first ? first.message : "The picture didn't compile. See the log for details.", "err", inPicture);
+      const [first] = explain(problems);
+      // TeX's line is in the preview document; the picture starts at line offset + 1 there.
+      let line = first?.line && first.line > built.offset ? startLine + first.line - built.offset - 1 : undefined;
+      // Some errors (an unclosed parenthesis) come with no line at all; find the place in the picture.
+      if (!line) {
+        const paren = unclosedParen(picture);
+        line = paren ? startLine + paren - 1 : startLine;
+      }
+      const kept = shownPdf ? " Showing the last picture that compiled." : "";
+      note(first ? first.message : "The picture didn't compile.", "err", line, `${first?.hint ?? "See the log for details."}${kept}`);
     }
   } catch (e) {
     note(String(e), "err");
@@ -179,6 +213,53 @@ export function tikzChanged(editor: EditorView, docChanged: boolean) {
 const STARTER = (indent: string) =>
   `\\begin{figure}[ht]\n${indent}  \\centering\n${indent}  \\begin{tikzpicture}\n${indent}    \\draw[->] (0,0) -- (3,0) node[right] {$x$};\n${indent}    \\draw[->] (0,0) -- (0,2) node[above] {$y$};\n${indent}    \\draw[thick] (0,0) .. controls (1,2) and (2,0) .. (3,1.5);\n${indent}  \\end{tikzpicture}\n${indent}  \\caption{}\n${indent}  \\label{fig:}\n${indent}\\end{figure}\n`;
 
+function button(className: string, label: string, title: string, onclick: () => void, svg?: string): HTMLButtonElement {
+  const b = document.createElement("button");
+  b.className = className;
+  b.title = title;
+  b.setAttribute("aria-label", title);
+  if (svg) b.innerHTML = svg;
+  else b.textContent = label;
+  b.onclick = onclick;
+  return b;
+}
+
+const svg = (path: string) =>
+  `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
+
+function buildPane(editor: EditorView): Pane {
+  const box = document.createElement("div");
+  box.className = "tikz-pane";
+  const bar = document.createElement("div");
+  bar.className = "tikz-bar";
+  const noteEl = document.createElement("div");
+  noteEl.className = "tikz-note";
+  const time = document.createElement("span");
+  time.className = "tikz-time";
+  time.title = "How long the last drawing took";
+  const zoomBox = document.createElement("span");
+  zoomBox.className = "pdf-zoom";
+  const zoomLabel = button("btn", "100%", "Fit to the pane", () => setZoom("fit"));
+  zoomBox.append(
+    button("icon-btn", "", "Zoom out", () => setZoom(zoom / 1.25), svg('<path d="M3.5 8h9"/>')),
+    zoomLabel,
+    button("icon-btn", "", "Zoom in", () => setZoom(zoom * 1.25), svg('<path d="M3.5 8h9M8 3.5v9"/>')),
+  );
+  const log = button("btn tikz-log", "Log", "Show the log of the last drawing", () => showLog("TikZ preview", lastLog));
+  bar.append(time, zoomBox, log);
+  const stage = document.createElement("div");
+  stage.className = "tikz-stage";
+  // pinch, or Cmd + scroll, zooms
+  stage.addEventListener("wheel", (e) => {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    setZoom(zoom * Math.exp(-e.deltaY * 0.01));
+  }, { passive: false });
+  new ResizeObserver(() => { if (zoom === 1) redrawSoon(); }).observe(stage);
+  box.append(bar, noteEl, stage);
+  return { box, note: noteEl, time, zoomLabel, stage, editor };
+}
+
 /** Show the picture at the cursor beside the source; with none there, insert one to start from. */
 export async function previewTikz(editor: EditorView | null) {
   if (open()) {
@@ -199,16 +280,15 @@ export async function previewTikz(editor: EditorView | null) {
     const inside = editor.state.doc.toString().indexOf("\\begin{tikzpicture}", insertAt) + "\\begin{tikzpicture}".length;
     editor.dispatch({ selection: { anchor: inside } });
   }
-  const box = document.createElement("div");
-  box.className = "tikz-pane";
-  const noteEl = document.createElement("div");
-  const stage = document.createElement("div");
-  stage.className = "tikz-stage";
-  box.append(noteEl, stage);
-  pane = { box, note: noteEl, stage, editor };
+  const moved = sideFile;
+  pane = buildPane(editor);
   lastSource = "";
+  lastLog = "";
   lastPicture = null;
-  await showInSide("TikZ", box);
+  shownPdf = null;
+  zoom = 1;
+  await showInSide("TikZ", pane.box);
+  if (moved) setStatus(`Saved ${moved} and closed it in the side pane to show the preview`);
   editor.focus();
   compileNow();
 }

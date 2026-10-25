@@ -125,6 +125,9 @@ const RULES: [RegExp, (m: RegExpExecArray) => string][] = [
   [/^(Missing \} inserted|Extra \}|Too many \}'s|Missing \{ inserted|Extra \{)/, () => "The braces don't balance: a { has no matching }, or a } has no {."],
   [/^Paragraph ended before (\\\S+?) was complete/, (m) => `The argument of ${m[1]} runs into a blank line, so its closing } is probably missing.`],
   [/^Runaway argument/, () => "An argument never ends: a closing } is probably missing."],
+  [/^File ended while scanning use of (\\[^\s.]+)/, (m) => /^\\(tikz|pgf)/.test(m[1])
+    ? "A ( in a TikZ path has no matching ), so TikZ read on to the end of the file."
+    : `The argument of ${m[1]} never ends: a closing } is probably missing.`],
   [/^File [`'](.+?)' not found/, (m) => /\.(sty|cls)$/.test(m[1])
     ? `The package ${m[1].replace(/\.\w+$/, "")} isn't installed. Tectonic fetches packages by itself; with TeX Live, run tlmgr install ${m[1].replace(/\.\w+$/, "")}.`
     : `There's no file called ${m[1]}. Check the name and the folder it's in.`],
@@ -149,7 +152,7 @@ const RULES: [RegExp, (m: RegExpExecArray) => string][] = [
   [/^Not in outer par mode/, () => "A figure or table is inside a box or another float. Move it out."],
 ];
 
-const BRACES = /^(Missing \} inserted|Extra \}|Too many \}'s|Missing \{ inserted|Extra \{|Runaway argument|Paragraph ended before)/;
+const BRACES = /^(Missing \} inserted|Extra \}|Too many \}'s|Missing \{ inserted|Extra \{|Runaway argument|Paragraph ended before|File ended while scanning)/;
 
 /** The line of the innermost { still open at the end of `line`, ignoring \{ and comments. */
 export function unclosedBrace(text: string, line: number): number | null {
