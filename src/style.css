@@ -1104,7 +1104,11 @@ body.resizing #layout > :not(.splitter) { pointer-events: none; }
 /* TikZ preview: the picture on its own page; a bar for zoom and timing, a line for errors */
 .tikz-pane { display: flex; flex-direction: column; height: 100%; background: var(--desk); }
 .tikz-bar { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 8px 0 14px; flex-shrink: 0; background: var(--panel); border-bottom: 1px solid var(--border); font-size: 12px; color: var(--muted); user-select: none; -webkit-user-select: none; }
-.tikz-time { margin-right: auto; font-variant-numeric: tabular-nums; }
+.tikz-tools { display: flex; align-items: center; gap: 1px; padding-right: 6px; margin-left: -6px; border-right: 1px solid var(--border); }
+.tikz-tools .icon-btn { width: 26px; height: 26px; }
+.tikz-tools .icon-btn[aria-pressed="true"] { background: var(--active); color: var(--accent); }
+.tikz-points { white-space: nowrap; cursor: help; }
+.tikz-time { margin-right: auto; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .tikz-log { height: 24px; padding: 0 8px; font-size: 12px; }
 .tikz-note { display: flex; flex-direction: column; gap: 2px; padding: 8px 14px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--border); background: var(--panel); }
 .tikz-note:empty { display: none; }
@@ -1121,12 +1125,19 @@ body.resizing #layout > :not(.splitter) { pointer-events: none; }
 .tikz-handle {
   position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%;
   background: color-mix(in srgb, var(--accent) 25%, #fff); border: 2px solid var(--accent);
-  cursor: grab; opacity: 0; transition: opacity 150ms ease, transform 150ms ease;
+  cursor: grab; opacity: .55; transition: opacity 150ms ease, transform 150ms ease;
 }
 .tikz-stage:hover .tikz-handle, .tikz-stage.dragging .tikz-handle, .tikz-handle.active { opacity: 1; }
 .tikz-handle:hover, .tikz-handle.active { transform: scale(1.3); }
 .tikz-handle.dragging { background: var(--accent); transform: scale(1.3); }
 .tikz-stage.dragging, .tikz-stage.dragging .tikz-handle { cursor: grabbing; }
+/* drawing: a crosshair, the grid points snap to, and the shape so far */
+.tikz-stage.drawing .tikz-sheet, .tikz-stage.drawing .tikz-handle { cursor: crosshair; }
+.tikz-ghost { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.tikz-ghost line { stroke: var(--accent); stroke-opacity: .18; stroke-width: 1; }
+.tikz-ghost line.axis { stroke-opacity: .4; }
+.tikz-ghost .shape { fill: none; stroke: var(--accent); stroke-opacity: 1; stroke-width: 1.5; stroke-dasharray: 4 3; }
+.tikz-ghost .end { fill: var(--accent); }
 .tikz-coord {
   position: absolute; transform: translate(10px, -28px); padding: 2px 6px; border-radius: var(--r);
   font: 11px/1.4 var(--font-mono); color: var(--fg); background: var(--raised); border: 1px solid var(--border);

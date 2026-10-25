@@ -184,7 +184,7 @@ export function instrument(picture: string, scan: PictureScan): string {
   return out;
 }
 
-type Point = [number, number];
+export type Point = [number, number];
 /** Where things ended up on the page, from the preview's log. */
 export interface Marks {
   /** Bounding box corners, in pt. */
@@ -299,4 +299,38 @@ export function snippetName(source: string): string {
   let h = 0x811c9dc5;
   for (let i = 0; i < source.length; i++) h = Math.imul(h ^ source.charCodeAt(i), 0x01000193);
   return `t-${(h >>> 0).toString(16)}-${source.length.toString(16)}`;
+}
+
+// ---------- drawing new shapes ----------
+export type ShapeTool = "line" | "arrow" | "rectangle" | "circle" | "text";
+
+/** The TikZ for a shape drawn from `a` to `b` (for a circle: centre and a point on it). */
+export function shapeSource(tool: ShapeTool, a: Point, b: Point): string {
+  const p = (q: Point) => formatCoordinate(q[0], q[1]);
+  switch (tool) {
+    case "line": return `\\draw ${p(a)} -- ${p(b)};`;
+    case "arrow": return `\\draw[->] ${p(a)} -- ${p(b)};`;
+    case "rectangle": return `\\draw ${p(a)} rectangle ${p(b)};`;
+    case "circle": {
+      const r = Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) * 1000) / 1000;
+      return `\\draw ${p(a)} circle (${r});`;
+    }
+    case "text": return `\\node at ${p(a)} {Text};`;
+  }
+}
+
+/** Where a new statement goes in a picture (just before `\end{tikzpicture}`) and the text to
+ *  put there, indented like the picture's body. */
+export function appendStatement(picture: string, scan: PictureScan, statement: string): { at: number; text: string } | null {
+  if (scan.end < 0) return null;
+  const lineStart = picture.lastIndexOf("\n", scan.end - 1) + 1;
+  const before = picture.slice(lineStart, scan.end);
+  if (/\S/.test(before)) return { at: scan.end, text: `${statement} ` }; // \end{…} shares its line
+  // the indentation of the body's last line, or the \end line's plus two spaces
+  const prev = picture.slice(0, lineStart - 1);
+  const prevLine = prev.slice(prev.lastIndexOf("\n") + 1);
+  const indent = lineStart > 0 && !/^\s*\\begin\{/.test(prevLine) && /\S/.test(prevLine)
+    ? /^[ \t]*/.exec(prevLine)![0]
+    : `${before}  `;
+  return { at: lineStart, text: `${indent}${statement}\n` };
 }

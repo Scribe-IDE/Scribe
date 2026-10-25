@@ -10,8 +10,8 @@ import { openPalette, promptInput } from "./palette";
 import { refreshFiles } from "./sidebar";
 import { closeSide, showInSide, sideFile } from "./split";
 import {
-  formatCoordinate, fromPage, instrument, INSTRUMENT_MACROS, pictureAt, PICTURE_FILE, previewDocument, readMarks, scanPicture,
-  toPage, unclosedParen, type Marks, type PictureScan,
+  appendStatement, formatCoordinate, fromPage, instrument, INSTRUMENT_MACROS, pictureAt, PICTURE_FILE, previewDocument,
+  readMarks, scanPicture, shapeSource, toPage, unclosedParen, type Marks, type PictureScan, type Point, type ShapeTool,
 } from "./tikzsource";
 import { STARTERS, starterText } from "./tikzwrite";
 import type { CompileResult } from "./types";
@@ -25,6 +25,8 @@ interface Pane {
   box: HTMLElement;
   note: HTMLElement;
   time: HTMLElement;
+  points: HTMLElement;
+  tools: HTMLElement;
   zoomLabel: HTMLElement;
   stage: HTMLElement;
   editor: EditorView;
@@ -193,6 +195,7 @@ function renderHandles() {
     if (c) place(label, toPage(marks, c.scope, drag.value[0], drag.value[1]));
     layer.append(label);
   }
+  if (tool !== "select") renderSketch(layer, marks);
 }
 
 function startDrag(e: PointerEvent) {
@@ -277,6 +280,189 @@ function withDraft(picture: string, pictureFrom: number): string {
 async function readLog(pdf: string): Promise<string> {
   const bytes = await invoke<ArrayBuffer>("read_binary", { root, rel: pdf.replace(/\.pdf$/, ".log") }).catch(() => null);
   return bytes ? new TextDecoder().decode(bytes) : "";
+}
+
+// ---------- drawing tools: add shapes with the mouse ----------
+type Tool = "select" | ShapeTool;
+let tool: Tool = "select";
+/** A shape being drawn: its first point, where the pointer is now, and where the press began. */
+let sketch: { a: Point; b: Point; downX: number; downY: number } | null = null;
+/** An existing point this close (in px) is used exactly, so new shapes join up with old ones. */
+const STICK = 8;
+
+const TOOLS: [Tool, string, string][] = [
+  ["select", "Move points", '<path d="M4.5 2.5l7.5 5.25-3.25.75L7 12z"/>'],
+  ["line", "Line: click two points", '<path d="M3 13L13 3"/>'],
+  ["arrow", "Arrow: click two points", '<path d="M3 13L13 3M7.5 3H13v5.5"/>'],
+  ["rectangle", "Rectangle: click two corners", '<rect x="2.5" y="4" width="11" height="8" rx="1"/>'],
+  ["circle", "Circle: click the centre, then a point on it", '<circle cx="8" cy="8" r="5.5"/>'],
+  ["text", "Text: click where it goes", '<path d="M3.5 4.5V3h9v1.5M8 3v10M6 13h4"/>'],
+];
+
+function setTool(next: Tool) {
+  tool = next;
+  sketch = null;
+  if (!pane) return;
+  for (const b of pane.tools.querySelectorAll<HTMLButtonElement>("button")) b.setAttribute("aria-pressed", String(b.dataset.tool === tool));
+  pane.stage.classList.toggle("drawing", tool !== "select");
+  renderHandles();
+}
+
+/** Tools need the picture's marks; a picture without them (tikzcd) can only be previewed. */
+function updateTools() {
+  if (!pane) return;
+  const usable = !!shown?.marks;
+  for (const b of pane.tools.querySelectorAll<HTMLButtonElement>("button")) b.disabled = !usable && b.dataset.tool !== "select";
+  if (!usable && tool !== "select") setTool("select");
+  const n = shown?.marks ? shown.scan.coords.length : 0;
+  pane.points.textContent = n === 1 ? "1 point" : `${n} points`;
+  pane.points.title = n
+    ? "Points you can drag: hold the pointer over the picture."
+    : "Only points written as plain numbers, like (1,2), can be dragged. Named nodes, ++ steps and plots can't.";
+}
+
+/** The point under the pointer in the picture's own coordinates: an existing point if one is
+ *  close, otherwise snapped to the grid (Option for finer steps). */
+function snapPoint(e: PointerEvent): Point | null {
+  const sheet = pane?.stage.querySelector(".tikz-sheet");
+  if (!sheet || !shown?.marks) return null;
+  const rect = sheet.getBoundingClientRect();
+  for (const c of shown.scan.coords) {
+    if (c.scope !== 0) continue;
+    const at = toPage(shown.marks, 0, c.x, c.y);
+    if (at && Math.hypot(at[0] * rect.width + rect.left - e.clientX, at[1] * rect.height + rect.top - e.clientY) <= STICK) return [c.x, c.y];
+  }
+  const at = fromPage(shown.marks, 0, (e.clientX - rect.left) / rect.width, (e.clientY - rect.top) / rect.height);
+  if (!at) return null;
+  const step = e.altKey ? SNAP_FINE : SNAP;
+  return [Math.round(at[0] / step) * step, Math.round(at[1] / step) * step];
+}
+
+const SVG_NS = "http://www.w3.org/2000/svg";
+function svgEl(name: string, attrs: Record<string, string | number>): SVGElement {
+  const el = document.createElementNS(SVG_NS, name);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
+  return el;
+}
+
+/** While a drawing tool is on: the grid it snaps to, and the shape so far. */
+function renderSketch(layer: HTMLElement, marks: Marks) {
+  const w = layer.clientWidth;
+  const h = layer.clientHeight;
+  const svg = svgEl("svg", { class: "tikz-ghost", viewBox: `0 0 ${w} ${h}` });
+  const px = (p: Point): Point => {
+    const at = toPage(marks, 0, p[0], p[1]) ?? [0, 0];
+    return [at[0] * w, at[1] * h];
+  };
+  // grid lines at whole units across the page
+  const corners = ([[0, 0], [1, 0], [0, 1], [1, 1]] as Point[]).map((c) => fromPage(marks, 0, c[0], c[1])).filter(Boolean) as Point[];
+  if (corners.length === 4) {
+    const xs = corners.map((c) => c[0]);
+    const ys = corners.map((c) => c[1]);
+    const [x0, x1, y0, y1] = [Math.ceil(Math.min(...xs)), Math.floor(Math.max(...xs)), Math.ceil(Math.min(...ys)), Math.floor(Math.max(...ys))];
+    if (x1 - x0 < 200 && y1 - y0 < 200) {
+      for (let x = x0; x <= x1; x++) {
+        const [a, b] = [px([x, Math.min(...ys)]), px([x, Math.max(...ys)])];
+        svg.append(svgEl("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], class: x === 0 ? "axis" : "" }));
+      }
+      for (let y = y0; y <= y1; y++) {
+        const [a, b] = [px([Math.min(...xs), y]), px([Math.max(...xs), y])];
+        svg.append(svgEl("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1], class: y === 0 ? "axis" : "" }));
+      }
+    }
+  }
+  if (sketch) {
+    const [a, b] = [px(sketch.a), px(sketch.b)];
+    const shape = tool === "rectangle"
+      ? svgEl("rect", { x: Math.min(a[0], b[0]), y: Math.min(a[1], b[1]), width: Math.abs(b[0] - a[0]), height: Math.abs(b[1] - a[1]) })
+      : tool === "circle"
+        ? svgEl("circle", { cx: a[0], cy: a[1], r: Math.hypot(b[0] - a[0], b[1] - a[1]) })
+        : svgEl("line", { x1: a[0], y1: a[1], x2: b[0], y2: b[1] });
+    shape.classList.add("shape");
+    svg.append(shape, svgEl("circle", { cx: a[0], cy: a[1], r: 3, class: "end" }), svgEl("circle", { cx: b[0], cy: b[1], r: 3, class: "end" }));
+    const label = document.createElement("span");
+    label.className = "tikz-coord";
+    label.textContent = formatCoordinate(sketch.b[0], sketch.b[1]);
+    place(label, toPage(marks, 0, sketch.b[0], sketch.b[1]));
+    layer.append(label);
+  }
+  layer.prepend(svg);
+}
+
+/** Put a statement at the end of the picture shown. `select` is a word in it to select, so
+ *  typing replaces it (the text of a new node). */
+function addStatement(statement: string, select?: string) {
+  const editor = pane!.editor;
+  const doc = editor.state.doc.toString();
+  const range = shown ? pictureAt(doc, shown.from) : null;
+  if (!range || range.from !== shown!.from) return;
+  const picture = doc.slice(range.from, range.to);
+  const spot = appendStatement(picture, scanPicture(picture), statement);
+  if (!spot) return;
+  const at = range.from + spot.at;
+  const word = select ? spot.text.lastIndexOf(select) : -1;
+  editor.dispatch({
+    changes: { from: at, insert: spot.text },
+    selection: word >= 0 ? { anchor: at + word, head: at + word + select!.length } : undefined,
+    effects: EditorView.scrollIntoView(at, { y: "nearest" }),
+    userEvent: "input",
+  });
+  if (word >= 0) editor.focus();
+}
+
+function cancelSketch(e: KeyboardEvent) {
+  if (e.key !== "Escape" || !sketch) return;
+  e.preventDefault();
+  e.stopPropagation();
+  sketch = null;
+  window.removeEventListener("keydown", cancelSketch, true);
+  renderHandles();
+}
+
+function finishSketch(b: Point) {
+  if (!sketch || tool === "select" || tool === "text") return;
+  const { a } = sketch;
+  if (a[0] === b[0] && a[1] === b[1]) return; // the same point twice: wait for another
+  sketch = null;
+  window.removeEventListener("keydown", cancelSketch, true);
+  addStatement(shapeSource(tool, a, b));
+  renderHandles();
+}
+
+/** A press on the picture while a drawing tool is on. Returns false when the select tool is on. */
+function drawDown(e: PointerEvent): boolean {
+  if (tool === "select") return false;
+  if (e.button !== 0) return true;
+  const p = snapPoint(e);
+  if (!p) return true;
+  e.preventDefault();
+  if (tool === "text") {
+    addStatement(shapeSource("text", p, p), "Text");
+    return true;
+  }
+  if (sketch) {
+    finishSketch(p);
+    return true;
+  }
+  sketch = { a: p, b: p, downX: e.clientX, downY: e.clientY };
+  pane!.stage.setPointerCapture(e.pointerId);
+  window.addEventListener("keydown", cancelSketch, true);
+  renderHandles();
+  return true;
+}
+
+function drawMove(e: PointerEvent) {
+  if (!sketch) return;
+  const p = snapPoint(e);
+  if (!p || (p[0] === sketch.b[0] && p[1] === sketch.b[1])) return;
+  sketch.b = p;
+  renderHandles();
+}
+
+/** Pressing, dragging and letting go draws the shape in one go; a plain click waits for the second point. */
+function drawUp(e: PointerEvent) {
+  if (!sketch || Math.hypot(e.clientX - sketch.downX, e.clientY - sketch.downY) < 6) return;
+  finishSketch(snapPoint(e) ?? sketch.b);
 }
 
 // ---------- export ----------
@@ -406,6 +592,7 @@ async function compileNow() {
     // the same drawing (a drag just landed in the editor): only the handles' places in the text moved
     if (shown && !drag) {
       shown = { from: range.from, scan: scanPicture(inEditor), marks: shown.marks };
+      updateTools();
       renderHandles();
     }
     return;
@@ -441,6 +628,7 @@ async function compileNow() {
       const marks = marked ? readMarks(await readLog(result.pdf)) : null;
       // handles follow the editor's text; while dragging, the scopes are the same in both
       shown = { from: range.from, scan: scanPicture(inEditor), marks };
+      updateTools();
       await draw();
       pane!.stage.classList.remove("stale");
       note("");
@@ -506,6 +694,16 @@ function buildPane(editor: EditorView): Pane {
   bar.className = "tikz-bar";
   const noteEl = document.createElement("div");
   noteEl.className = "tikz-note";
+  const tools = document.createElement("span");
+  tools.className = "tikz-tools";
+  for (const [id, title, path] of TOOLS) {
+    const b = button("icon-btn", "", title, () => setTool(id), svg(path));
+    b.dataset.tool = id;
+    b.setAttribute("aria-pressed", String(id === tool));
+    tools.append(b);
+  }
+  const points = document.createElement("span");
+  points.className = "tikz-points";
   const time = document.createElement("span");
   time.className = "tikz-time";
   time.title = "How long the last drawing took";
@@ -519,7 +717,7 @@ function buildPane(editor: EditorView): Pane {
   );
   const log = button("btn tikz-log", "Log", "Show the log of the last drawing", () => showLog("TikZ preview", lastLog));
   const save = button("btn tikz-log", "Export…", "Save the picture as PDF, SVG or PNG", exportPicture);
-  bar.append(time, zoomBox, log, save);
+  bar.append(tools, points, time, zoomBox, log, save);
   const stage = document.createElement("div");
   stage.className = "tikz-stage";
   // pinch, or Cmd + scroll, zooms
@@ -529,13 +727,13 @@ function buildPane(editor: EditorView): Pane {
     setZoom(zoom * Math.exp(-e.deltaY * 0.01));
   }, { passive: false });
   new ResizeObserver(() => { if (zoom === 1) redrawSoon(); }).observe(stage);
-  stage.addEventListener("pointerdown", startDrag);
-  stage.addEventListener("pointermove", moveDrag);
-  stage.addEventListener("pointerup", (e) => endDrag(e));
+  stage.addEventListener("pointerdown", (e) => { if (!drawDown(e)) startDrag(e); });
+  stage.addEventListener("pointermove", (e) => { drawMove(e); moveDrag(e); });
+  stage.addEventListener("pointerup", (e) => { drawUp(e); endDrag(e); });
   stage.addEventListener("pointercancel", (e) => endDrag(e, true));
 
   box.append(bar, noteEl, stage);
-  return { box, note: noteEl, time, zoomLabel, stage, editor };
+  return { box, note: noteEl, time, points, tools, zoomLabel, stage, editor };
 }
 
 /** Show the picture at the cursor beside the source; with none there, insert one to start from. */
@@ -580,6 +778,8 @@ async function openPane(editor: EditorView) {
   shownPdf = null;
   shown = null;
   drag = null;
+  tool = "select";
+  sketch = null;
   zoom = 1;
   await showInSide("TikZ", pane.box);
   if (moved) setStatus(`Saved ${moved} and closed it in the side pane to show the preview`);

@@ -143,6 +143,14 @@ interface Starter {
 
 export const STARTERS: Starter[] = [
   {
+    label: "Blank canvas",
+    detail: "An empty 6 × 4 area to draw on with the mouse",
+    // an invisible box gives the picture its size; drag its corners to resize it
+    body: String.raw`\begin{tikzpicture}
+  \path[use as bounding box] (0,0) rectangle (6,4);
+\end{tikzpicture}`,
+  },
+  {
     label: "Axes and a curve",
     detail: "Two arrows and a Bézier curve",
     body: String.raw`\begin{tikzpicture}
