@@ -113,6 +113,27 @@ Loops with \texttt{\textbackslash foreach}: change the layer sizes to redraw the
   \label{fig:network}
 \end{figure}
 
+\section{Scopes}
+Points inside shifted, rotated and scaled scopes can be dragged too: hover over the picture to
+see them, and drag one.
+
+\begin{figure}[ht]
+  \centering
+  \begin{tikzpicture}[scale=1.2]
+    \draw[ink!30] (0,0) grid (4,3);
+    \draw[ink, thick] (0.5,0.5) rectangle (1.5,1.5);
+    \begin{scope}[shift={(2.5,1.5)}, rotate=30]
+      \draw[amber, very thick] (0,0) -- (1,0) -- (0.5,0.8) -- cycle;
+    \end{scope}
+    \begin{scope}[xshift=0.5cm, yshift=2cm, scale=0.5]
+      \fill[amber!40] (0,0) circle (0.6);
+      \draw[ink] (-1,-1) -- (1,1);
+    \end{scope}
+  \end{tikzpicture}
+  \caption{Scopes move and turn what is inside them.}
+  \label{fig:scopes}
+\end{figure}
+
 \section{Errors}
 Uncomment the line below and the preview shows the error with a button that jumps to the
 line in this file.

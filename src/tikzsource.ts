@@ -28,13 +28,13 @@ export function pictureAt(doc: string, pos: number): { from: number; to: number 
 }
 
 /** The paper's preamble with its class swapped for standalone; `minimal` keeps only what pictures need.
- *  `offset` is the number of lines before the picture. */
-export function previewDocument(paper: string, picture: string, minimal: boolean): { source: string; offset: number } {
+ *  `extra` goes at the end of the preamble. `offset` is the number of lines before the picture. */
+export function previewDocument(paper: string, picture: string, minimal: boolean, extra = ""): { source: string; offset: number } {
   const begin = paper.indexOf("\\begin{document}");
   let preamble = begin < 0 ? "" : paper.slice(0, begin).replace(/^[ \t]*\\documentclass\s*(\[[^\]]*\])?\s*\{[^}]*\}[^\n]*\n?/m, "");
   if (minimal) preamble = preamble.split("\n").filter((l) => ESSENTIAL.test(l)).join("\n");
   // \input@path lets the picture's \input and \includegraphics find files from the project folder
-  const head = `${CLASS}\n\\makeatletter\\def\\input@path{{../../}}\\makeatother\n${preamble.trim()}\n\\begin{document}\n`;
+  const head = `${CLASS}\n\\makeatletter\\def\\input@path{{../../}}\\makeatother\n${preamble.trim()}\n${extra ? `${extra}\n` : ""}\\begin{document}\n`;
   return { source: `${head}${picture}\n\\end{document}\n`, offset: head.split("\n").length - 1 };
 }
 
@@ -61,4 +61,186 @@ export function unclosedParen(picture: string): number | null {
     }
   }
   return open.length ? open[0] : null;
+}
+
+// ---------- coordinates that can be dragged ----------
+/** A plain `(x,y)` in a picture, with its place in the picture's source. */
+export interface Coordinate {
+  from: number;
+  to: number;
+  x: number;
+  y: number;
+  /** The scope it is in: 0 is the picture itself. */
+  scope: number;
+}
+
+export interface PictureScan {
+  coords: Coordinate[];
+  /** Where each scope's body starts (index = scope number). */
+  scopes: number[];
+  /** Where `\end{tikzpicture}` is; -1 when the picture can't be instrumented (tikzcd). */
+  end: number;
+}
+
+const NUMBER = String.raw`-?(?:\d+\.?\d*|\.\d+)`;
+const LITERAL = new RegExp(String.raw`^\(\s*(${NUMBER})\s*,\s*(${NUMBER})\s*\)`);
+// what comes before a coordinate in a path: `-- (`, `at (`, `\draw (`, `] (`, `) (` …
+const BEFORE_COORD = /(--|\.\.|\|-|-\||\bat|\band|\bcontrols|\bto|\bedge|\brectangle|\bgrid|\bcycle|\\draw|\\path|\\fill|\\filldraw|\\clip|\\shade|\\shadedraw|\\pattern|\]|\))\s*$/;
+// options on a statement that move its coordinates, so a handle would be in the wrong place
+const MOVES = /\b(x?shift|yshift|scale|xscale|yscale|rotate|cm|xslant|yslant|shift only)\s*=/;
+const PATH_COMMANDS = /^\\(draw|path|fill|filldraw|clip|shade|shadedraw|pattern|node|coordinate)\b/;
+
+/** The end of an optional `[…]` starting at or after `i` (after spaces), or `i` when there is none. */
+function skipOptions(text: string, i: number): number {
+  let j = i;
+  while (/\s/.test(text[j] ?? "")) j++;
+  if (text[j] !== "[") return i;
+  let braces = 0;
+  for (let k = j + 1; k < text.length; k++) {
+    if (text[k] === "{") braces++;
+    else if (text[k] === "}") braces--;
+    else if (text[k] === "]" && braces === 0) return k + 1;
+  }
+  return i;
+}
+
+/** The plain coordinates of a picture and its scopes. Coordinates that are relative (`++(1,0)`),
+ *  polar, inside a pgfplots axis, or on a statement that shifts or scales itself are left out. */
+export function scanPicture(picture: string): PictureScan {
+  const head = /^\\begin\{(tikzpicture|circuitikz)\}/.exec(picture);
+  if (!head) return { coords: [], scopes: [], end: -1 };
+  const scopes = [skipOptions(picture, head[0].length)];
+  const coords: Coordinate[] = [];
+  const stack = [0];
+  let axis = 0;
+  let moved = false;
+  let end = -1;
+  for (let i = scopes[0]; i < picture.length && end < 0; i++) {
+    const ch = picture[i];
+    if (ch === "%") {
+      while (i + 1 < picture.length && picture[i + 1] !== "\n") i++;
+    } else if (ch === ";") {
+      moved = false;
+    } else if (ch === "\\") {
+      const rest = picture.slice(i, i + 40);
+      let m: RegExpExecArray | null;
+      if ((m = /^\\begin\{scope\}/.exec(rest))) {
+        const body = skipOptions(picture, i + m[0].length);
+        if (axis) stack.push(-1);
+        else {
+          stack.push(scopes.length);
+          scopes.push(body);
+        }
+        i = body - 1;
+      } else if ((m = /^\\end\{scope\}/.exec(rest))) {
+        if (stack.length > 1) stack.pop();
+        i += m[0].length - 1;
+      } else if ((m = /^\\begin\{\w*axis\}/.exec(rest))) {
+        axis++;
+        i += m[0].length - 1;
+      } else if ((m = /^\\end\{\w*axis\}/.exec(rest))) {
+        axis = Math.max(0, axis - 1);
+        i += m[0].length - 1;
+      } else if (/^\\end\{(tikzpicture|circuitikz)\}/.test(rest)) {
+        end = i;
+      } else if ((m = PATH_COMMANDS.exec(rest))) {
+        const after = skipOptions(picture, i + m[0].length);
+        moved = MOVES.test(picture.slice(i + m[0].length, after));
+        i += m[0].length - 1;
+      } else {
+        i++; // an escaped character or the first letter of a command
+      }
+    } else if (ch === "(" && !axis && !moved && stack[stack.length - 1] >= 0) {
+      const m = LITERAL.exec(picture.slice(i, i + 60));
+      const before = picture.slice(Math.max(0, i - 24), i);
+      if (m && !/\+\s*$/.test(before) && BEFORE_COORD.test(before)) {
+        coords.push({ from: i, to: i + m[0].length, x: Number(m[1]), y: Number(m[2]), scope: stack[stack.length - 1] });
+        i += m[0].length - 1;
+      }
+    }
+  }
+  return { coords, scopes, end };
+}
+
+/** Macros the instrumented picture uses; they go in the preview's preamble. Each scope gets
+ *  three named points (its origin and unit vectors), placed without growing the picture, and
+ *  at the end the picture reports where they and its bounding box ended up, in pt. */
+export const INSTRUMENT_MACROS = String.raw`\makeatletter
+\newcommand\ScribeMark[1]{\begin{pgfinterruptboundingbox}\path (0,0) coordinate (scribeo#1) (1,0) coordinate (scribex#1) (0,1) coordinate (scribey#1);\end{pgfinterruptboundingbox}}
+\newcommand\ScribeAt[2]{\pgfpointanchor{#1}{#2}\typeout{SCRIBE #1 #2 \the\pgf@x\space\the\pgf@y}}
+\newcommand\ScribeReport[1]{{\pgftransformreset\ScribeAt{current bounding box}{south west}\ScribeAt{current bounding box}{north east}\foreach\scribek in {0,...,#1}{\ScribeAt{scribeo\scribek}{center}\ScribeAt{scribex\scribek}{center}\ScribeAt{scribey\scribek}{center}}}}
+\makeatother`;
+
+/** The picture with the marks put in. Nothing is put on a line of its own, so the line numbers
+ *  of errors stay the same. */
+export function instrument(picture: string, scan: PictureScan): string {
+  if (scan.end < 0) return picture;
+  const inserts: [number, string][] = scan.scopes.map((at, k) => [at, `\\ScribeMark{${k}}`]);
+  inserts.push([scan.end, `\\ScribeReport{${scan.scopes.length - 1}}`]);
+  let out = picture;
+  for (const [at, text] of inserts.sort((a, b) => b[0] - a[0])) out = out.slice(0, at) + text + out.slice(at);
+  return out;
+}
+
+type Point = [number, number];
+/** Where things ended up on the page, from the preview's log. */
+export interface Marks {
+  /** Bounding box corners, in pt. */
+  sw: Point;
+  ne: Point;
+  /** Per scope: origin, and the points (1,0) and (0,1). */
+  scopes: { o: Point; x: Point; y: Point }[];
+}
+
+export function readMarks(log: string): Marks | null {
+  const at = new Map<string, Point>();
+  for (const m of log.matchAll(/^SCRIBE (.+) (south west|north east|center) (-?[\d.]+)pt (-?[\d.]+)pt\s*$/gm)) {
+    at.set(`${m[1]} ${m[2]}`, [Number(m[3]), Number(m[4])]);
+  }
+  const sw = at.get("current bounding box south west");
+  const ne = at.get("current bounding box north east");
+  if (!sw || !ne) return null;
+  const scopes: Marks["scopes"] = [];
+  for (let k = 0; at.has(`scribeo${k} center`); k++) {
+    scopes.push({ o: at.get(`scribeo${k} center`)!, x: at.get(`scribex${k} center`)!, y: at.get(`scribey${k} center`)! });
+  }
+  return { sw, ne, scopes };
+}
+
+/** The standalone page's border around the picture, in pt (see CLASS). */
+const BORDER = 6;
+
+/** Where `(x,y)` in a scope is on the page, as fractions of its width and height from the top left. */
+export function toPage(marks: Marks, scope: number, x: number, y: number): Point | null {
+  const s = marks.scopes[scope];
+  if (!s) return null;
+  const px = s.o[0] + x * (s.x[0] - s.o[0]) + y * (s.y[0] - s.o[0]);
+  const py = s.o[1] + x * (s.x[1] - s.o[1]) + y * (s.y[1] - s.o[1]);
+  const w = marks.ne[0] - marks.sw[0] + 2 * BORDER;
+  const h = marks.ne[1] - marks.sw[1] + 2 * BORDER;
+  return [(px - marks.sw[0] + BORDER) / w, (marks.ne[1] + BORDER - py) / h];
+}
+
+/** The scope's `(x,y)` at a place on the page given as fractions (the inverse of toPage). */
+export function fromPage(marks: Marks, scope: number, fx: number, fy: number): Point | null {
+  const s = marks.scopes[scope];
+  if (!s) return null;
+  const w = marks.ne[0] - marks.sw[0] + 2 * BORDER;
+  const h = marks.ne[1] - marks.sw[1] + 2 * BORDER;
+  const px = fx * w + marks.sw[0] - BORDER - s.o[0];
+  const py = marks.ne[1] + BORDER - fy * h - s.o[1];
+  const [a, c] = [s.x[0] - s.o[0], s.x[1] - s.o[1]];
+  const [b, d] = [s.y[0] - s.o[0], s.y[1] - s.o[1]];
+  const det = a * d - b * c;
+  if (Math.abs(det) < 1e-9) return null;
+  return [(d * px - b * py) / det, (a * py - c * px) / det];
+}
+
+/** A coordinate as written: `(1.25,-2)`, never `1.2500` or `-0`. */
+export function formatCoordinate(x: number, y: number): string {
+  const n = (v: number) => {
+    const s = String(Math.round(v * 1000) / 1000);
+    return s === "-0" ? "0" : s;
+  };
+  return `(${n(x)},${n(y)})`;
 }
