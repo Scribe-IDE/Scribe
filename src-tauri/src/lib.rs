@@ -421,34 +421,38 @@ fn compile_blocking(root: &str, main: &str) -> Result<CompileResult, String> {
         return Err(format!("main file not found: {main}"));
     }
     let root_dir = Path::new(root).canonicalize().map_err(|e| e.to_string())?;
-    std::fs::create_dir_all(root_dir.join(BUILD_DIR)).map_err(|e| e.to_string())?;
+    run_tex(&root_dir, main, BUILD_DIR, true)
+}
+
+/// Runs TeX on `input` (relative to the project) from the project folder, writing into `outdir`.
+fn run_tex(root_dir: &Path, input: &str, outdir: &str, synctex: bool) -> Result<CompileResult, String> {
+    std::fs::create_dir_all(root_dir.join(outdir)).map_err(|e| e.to_string())?;
 
     let (engine, mut cmd) = if has("tectonic") {
         let mut c = Command::new("tectonic");
-        c.args(["-X", "compile", main, "--outdir", BUILD_DIR, "--synctex", "--keep-logs"]);
+        c.args(["-X", "compile", input, "--outdir", outdir, "--keep-logs"]);
+        if synctex {
+            c.arg("--synctex");
+        }
         ("tectonic", c)
     } else if has("latexmk") {
         let mut c = Command::new("latexmk");
-        c.args([
-            "-pdf",
-            "-synctex=1",
-            "-interaction=nonstopmode",
-            "-halt-on-error",
-            "-file-line-error",
-            &format!("-outdir={BUILD_DIR}"),
-            main,
-        ]);
+        c.args(["-pdf", "-interaction=nonstopmode", "-halt-on-error", "-file-line-error", &format!("-outdir={outdir}")]);
+        if synctex {
+            c.arg("-synctex=1");
+        }
+        c.arg(input);
         ("latexmk", c)
     } else {
         return Err("No TeX engine found. Install Tectonic (recommended) or TeX Live with latexmk.".into());
     };
 
-    let out = cmd.current_dir(&root_dir).output().map_err(|e| format!("{engine}: {e}"))?;
+    let out = cmd.current_dir(root_dir).output().map_err(|e| format!("{engine}: {e}"))?;
     let mut log = String::from_utf8_lossy(&out.stdout).into_owned();
     log.push_str(&String::from_utf8_lossy(&out.stderr));
 
-    let stem = Path::new(main).file_stem().unwrap_or_default().to_string_lossy();
-    let pdf_rel = format!("{BUILD_DIR}/{stem}.pdf");
+    let stem = Path::new(input).file_stem().unwrap_or_default().to_string_lossy();
+    let pdf_rel = format!("{outdir}/{stem}.pdf");
     let pdf_exists = root_dir.join(&pdf_rel).is_file();
 
     Ok(CompileResult {
@@ -457,6 +461,28 @@ fn compile_blocking(root: &str, main: &str) -> Result<CompileResult, String> {
         log,
         pdf: pdf_exists.then_some(pdf_rel),
     })
+}
+
+/// Where the TikZ preview is compiled, inside the build folder.
+const SNIPPET_DIR: &str = "build/tikz";
+
+/// Compiles a small standalone document (the TikZ preview) from the project folder, so the
+/// paper's \input and \includegraphics paths still work. The old PDF is removed first, so a
+/// failed run never shows the previous picture as if it were this one.
+fn compile_snippet_blocking(root: &str, source: &str) -> Result<CompileResult, String> {
+    let root_dir = Path::new(root).canonicalize().map_err(|e| e.to_string())?;
+    let dir = root_dir.join(SNIPPET_DIR);
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let _ = std::fs::remove_file(dir.join("preview.pdf"));
+    std::fs::write(dir.join("preview.tex"), source).map_err(|e| e.to_string())?;
+    run_tex(&root_dir, &format!("{SNIPPET_DIR}/preview.tex"), SNIPPET_DIR, false)
+}
+
+#[tauri::command]
+async fn compile_snippet(root: String, source: String) -> Result<CompileResult, String> {
+    tauri::async_runtime::spawn_blocking(move || compile_snippet_blocking(&root, &source))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -2468,7 +2494,7 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .invoke_handler(tauri::generate_handler![
             list_files, list_dirs, create_dir, rename_path, delete_path, import_files,
-            read_file, write_file, read_binary, compile,
+            read_file, write_file, read_binary, compile, compile_snippet,
             parse_notebook, run_notebook, generate_style,
             git_status, git_branch, git_overview, git_diff, git_commit, git_push, git_init, git_identity, search_project, read_settings, write_settings,
             kernel_start, kernel_run_cell, kernel_stop,

@@ -26,6 +26,7 @@ import { spellExtension } from "./spell";
 import { reportCursor } from "./statusbar";
 import { closeTab } from "./tabs";
 import { displayValue, index, scanLabels } from "./texindex";
+import { tikzChanged } from "./tikz";
 import { zoteroCiteCompletion } from "./zotero";
 
 // ---------- autocompletion ----------
@@ -343,6 +344,7 @@ export function createEditorState(doc: string, path: string, hooks: EditorHooks 
           outlineChanged();
         }
         reportCursor(u.view);
+        if (u.docChanged || u.selectionSet) tikzChanged(u.view, u.docChanged);
       }),
     ],
   });

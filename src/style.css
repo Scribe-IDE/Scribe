@@ -1101,6 +1101,16 @@ body.resizing #layout > :not(.splitter) { pointer-events: none; }
 #side-body { flex: 1; min-height: 0; overflow: auto; }
 #side-body .cm-editor { height: 100%; }
 
+/* TikZ preview: the picture on its own page, a line above it for what's happening */
+.tikz-pane { display: flex; flex-direction: column; height: 100%; background: var(--desk); }
+.tikz-note { min-height: 30px; padding: 6px 14px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--border); background: var(--panel); }
+.tikz-note:empty { display: none; }
+.tikz-note.err { color: var(--err); }
+.tikz-jump { margin-left: 4px; color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.tikz-stage { flex: 1; min-height: 0; overflow: auto; display: grid; place-items: center; padding: 16px; transition: opacity 200ms ease; }
+.tikz-stage.stale { opacity: .55; }
+.tikz-picture { display: block; max-width: 100%; height: auto; background: #fff; border-radius: var(--r); }
+
 /* diff shown in the side pane */
 .diff { padding: 8px 0 24px; font: 12px/1.6 var(--font-mono); color: var(--fg-dim); user-select: text; -webkit-user-select: text; }
 .diff-line { padding: 0 14px; white-space: pre-wrap; word-break: break-word; }
