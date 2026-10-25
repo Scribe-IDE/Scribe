@@ -1106,6 +1106,18 @@ const NOTE_PREAMBLE = String.raw`\documentclass[11pt]{article}
   \usepackage[T1]{fontenc}
   \usepackage{lmodern}
   \usepackage{textalpha}
+  % keys and arrows that notes write about, which pdfLaTeX doesn't know by itself
+  \DeclareUnicodeCharacter{2318}{\textsf{Cmd}}
+  \DeclareUnicodeCharacter{2325}{\textsf{Opt}}
+  \DeclareUnicodeCharacter{21E7}{\textsf{Shift}}
+  \DeclareUnicodeCharacter{2303}{\textsf{Ctrl}}
+  \DeclareUnicodeCharacter{21B5}{\textsf{Return}}
+  \DeclareUnicodeCharacter{238B}{\textsf{Esc}}
+  \DeclareUnicodeCharacter{2192}{\ensuremath{\rightarrow}}
+  \DeclareUnicodeCharacter{2190}{\ensuremath{\leftarrow}}
+  \DeclareUnicodeCharacter{2191}{\ensuremath{\uparrow}}
+  \DeclareUnicodeCharacter{2193}{\ensuremath{\downarrow}}
+  \DeclareUnicodeCharacter{2713}{\ensuremath{\checkmark}}
 \else
   \usepackage{fontspec}
   % a face with Greek as well as Latin, when the system has one
