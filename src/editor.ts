@@ -293,12 +293,12 @@ export const gruvbox = HighlightStyle.define([
 export function languageFor(path: string): Extension {
   if (path.endsWith(".py")) return python();
   if (path.endsWith(".ipynb")) return []; // only shown raw when the JSON is broken
-  if (/\.(tex|sty|cls|bib)$/.test(path)) return StreamLanguage.define(stex);
+  if (/\.(tex|tikz|sty|cls|bib)$/.test(path)) return StreamLanguage.define(stex);
   return [];
 }
 
 export function completionFor(path: string): Extension {
-  if (/\.(tex|sty|cls|bib)$/.test(path)) {
+  if (/\.(tex|tikz|sty|cls|bib)$/.test(path)) {
     return autocompletion({ override: [latexCompletion, zoteroCiteCompletion, tikzCompletion] });
   }
   if (isNote(path)) return autocompletion({ override: [notesCompletion] });

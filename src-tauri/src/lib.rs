@@ -466,23 +466,57 @@ fn run_tex(root_dir: &Path, input: &str, outdir: &str, synctex: bool) -> Result<
 /// Where the TikZ preview is compiled, inside the build folder.
 const SNIPPET_DIR: &str = "build/tikz";
 
-/// Compiles a small standalone document (the TikZ preview) from the project folder, so the
-/// paper's \input and \includegraphics paths still work. The old PDF is removed first, so a
-/// failed run never shows the previous picture as if it were this one.
-fn compile_snippet_blocking(root: &str, source: &str) -> Result<CompileResult, String> {
+/// Compiles a small standalone document (a TikZ picture) from the project folder, so the
+/// paper's \input and \includegraphics paths still work. It is `build/tikz/<name>.tex`; the live
+/// preview is `preview`, thumbnails are named after their source. The old PDF is removed first,
+/// so a failed run never shows the previous picture as if it were this one.
+fn compile_snippet_blocking(root: &str, source: &str, name: &str) -> Result<CompileResult, String> {
+    let valid = !name.is_empty() && name.len() <= 64 && name.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-');
+    if !valid {
+        return Err(format!("not a snippet name: {name}"));
+    }
     let root_dir = Path::new(root).canonicalize().map_err(|e| e.to_string())?;
     let dir = root_dir.join(SNIPPET_DIR);
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let _ = std::fs::remove_file(dir.join("preview.pdf"));
-    std::fs::write(dir.join("preview.tex"), source).map_err(|e| e.to_string())?;
-    run_tex(&root_dir, &format!("{SNIPPET_DIR}/preview.tex"), SNIPPET_DIR, false)
+    let _ = std::fs::remove_file(dir.join(format!("{name}.pdf")));
+    std::fs::write(dir.join(format!("{name}.tex")), source).map_err(|e| e.to_string())?;
+    run_tex(&root_dir, &format!("{SNIPPET_DIR}/{name}.tex"), SNIPPET_DIR, false)
 }
 
 #[tauri::command]
-async fn compile_snippet(root: String, source: String) -> Result<CompileResult, String> {
-    tauri::async_runtime::spawn_blocking(move || compile_snippet_blocking(&root, &source))
+async fn compile_snippet(root: String, source: String, name: Option<String>) -> Result<CompileResult, String> {
+    let name = name.unwrap_or_else(|| "preview".into());
+    tauri::async_runtime::spawn_blocking(move || compile_snippet_blocking(&root, &source, &name))
         .await
         .map_err(|e| e.to_string())?
+}
+
+/// Converts a PDF in the project to SVG (exporting a TikZ picture), with pdftocairo from
+/// Poppler or, failing that, dvisvgm from TeX Live.
+#[tauri::command]
+async fn pdf_to_svg(root: String, from: String, to: String) -> Result<(), String> {
+    let src = resolve(&root, &from)?;
+    let dest = resolve(&root, &to)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        if let Some(parent) = dest.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        let tries: [(&str, Vec<std::ffi::OsString>); 2] = [
+            ("pdftocairo", vec!["-svg".into(), src.clone().into(), dest.clone().into()]),
+            ("dvisvgm", vec!["--pdf".into(), "--no-fonts".into(), src.clone().into(), "-o".into(), dest.clone().into()]),
+        ];
+        let mut errors = Vec::new();
+        for (tool, args) in tries {
+            match Command::new(tool).args(&args).output() {
+                Ok(out) if out.status.success() && dest.is_file() => return Ok(()),
+                Ok(out) => errors.push(format!("{tool}: {}", String::from_utf8_lossy(&out.stderr).trim())),
+                Err(_) => errors.push(format!("{tool} isn't installed")),
+            }
+        }
+        Err(format!("Couldn't make an SVG. {}", errors.join("; ")))
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -2494,7 +2528,7 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .invoke_handler(tauri::generate_handler![
             list_files, list_dirs, create_dir, rename_path, delete_path, import_files,
-            read_file, write_file, read_binary, compile, compile_snippet,
+            read_file, write_file, read_binary, compile, compile_snippet, pdf_to_svg,
             parse_notebook, run_notebook, generate_style,
             git_status, git_branch, git_overview, git_diff, git_commit, git_push, git_init, git_identity, search_project, read_settings, write_settings,
             kernel_start, kernel_run_cell, kernel_stop,
@@ -2545,6 +2579,26 @@ mod tests {
         assert!(delete_path(root.clone(), "".into()).is_err());
         assert!(delete_path(root.clone(), "../x".into()).is_err());
 
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn compiles_snippets_by_name_only() {
+        let dir = std::env::temp_dir().join(format!("scribe-snippet-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let root = dir.to_string_lossy().to_string();
+        for bad in ["", "../x", "a/b", "Preview", "a.b", &"x".repeat(65)] {
+            assert!(compile_snippet_blocking(&root, "", bad).is_err(), "accepted {bad:?}");
+        }
+        let source = "\\documentclass[tikz,border=6pt]{standalone}\n\\begin{document}\n\\begin{tikzpicture}\\draw (0,0) -- (1,1);\\end{tikzpicture}\n\\end{document}\n";
+        let res = compile_snippet_blocking(&root, source, "thumb-1").unwrap();
+        assert!(res.ok, "snippet failed:\n{}", res.log);
+        assert_eq!(res.pdf.as_deref(), Some("build/tikz/thumb-1.pdf"));
+        let svg = |to: &str| tauri::async_runtime::block_on(pdf_to_svg(root.clone(), "build/tikz/thumb-1.pdf".into(), to.into()));
+        assert!(svg("../escape.svg").is_err());
+        if svg("figures/thumb.svg").is_ok() {
+            assert!(std::fs::read_to_string(dir.join("figures/thumb.svg")).unwrap().contains("<svg"));
+        }
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

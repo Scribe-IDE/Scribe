@@ -6,7 +6,7 @@ import { setStatus } from "./core";
 import { openPalette } from "./palette";
 import { activeEditor } from "./split";
 import { openTikzPreview } from "./tikz";
-import { pictureAt } from "./tikzsource";
+import { pictureAt, PICTURE_FILE } from "./tikzsource";
 
 // ---------- completion ----------
 const OPTIONS: [string, string][] = [
@@ -309,8 +309,8 @@ function insertStarter(editor: EditorView, starter: Starter) {
 /** Pick a picture to start from and put it at the cursor, with the preview open beside it. */
 export function insertTikzPicture() {
   const editor = activeEditor();
-  if (!editor || !editor.dom.dataset.path?.endsWith(".tex")) {
-    setStatus("Put the cursor in a .tex file to insert a TikZ picture");
+  if (!editor || !PICTURE_FILE.test(editor.dom.dataset.path ?? "")) {
+    setStatus("Put the cursor in a .tex or .tikz file to insert a TikZ picture");
     return;
   }
   openPalette({

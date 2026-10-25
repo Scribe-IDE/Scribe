@@ -2,6 +2,8 @@
 // own, and reading TikZ syntax. Pure: no DOM, no editor, so it can be tested on its own.
 
 const ENVS = "tikzpicture|tikzcd|circuitikz";
+/** Files that can hold pictures: the paper's .tex files and stand-alone .tikz pictures. */
+export const PICTURE_FILE = /\.(tex|tikz)$/;
 const CLASS = "\\documentclass[tikz,border=6pt]{standalone}";
 // Kept from the paper's preamble when the whole of it doesn't compile as a standalone document.
 const ESSENTIAL = /^\s*\\(usetikzlibrary|usepgfplotslibrary|tikzset|pgfplotsset|definecolor|colorlet|usepackage(\[[^\]]*\])?\{[^}]*\b(tikz|pgfplots|tikz-cd|circuitikz|xcolor|amsmath|amssymb|bm|siunitx)\b[^}]*\})/;
@@ -243,4 +245,58 @@ export function formatCoordinate(x: number, y: number): string {
     return s === "-0" ? "0" : s;
   };
   return `(${n(x)},${n(y)})`;
+}
+
+// ---------- the pictures of a file ----------
+export interface PictureInfo {
+  from: number;
+  to: number;
+  /** 1-based line of `\begin{…}`. */
+  line: number;
+  /** From the figure around the picture, if there is one. */
+  label: string | null;
+  caption: string | null;
+}
+
+/** The text of the `{…}` group that starts at `open`. */
+function group(text: string, open: number): string | null {
+  let depth = 0;
+  for (let i = open; i < text.length; i++) {
+    if (text[i] === "\\") i++;
+    else if (text[i] === "{") depth++;
+    else if (text[i] === "}" && --depth === 0) return text.slice(open + 1, i);
+  }
+  return null;
+}
+
+/** Every picture in a file that isn't commented out, with the caption and label of its figure. */
+export function findPictures(doc: string): PictureInfo[] {
+  const out: PictureInfo[] = [];
+  const re = new RegExp(`\\\\begin\\{(${ENVS})\\}`, "g");
+  for (let m = re.exec(doc); m; m = re.exec(doc)) {
+    const lineStart = doc.lastIndexOf("\n", m.index - 1) + 1;
+    if (/(^|[^\\])%/.test(doc.slice(lineStart, m.index))) continue;
+    const range = pictureAt(doc, m.index);
+    if (!range || range.from !== m.index) continue;
+    re.lastIndex = range.to; // pictures inside this one belong to it
+    const begin = doc.lastIndexOf("\\begin{figure", range.from);
+    const end = doc.indexOf("\\end{figure", range.to);
+    let label: string | null = null;
+    let caption: string | null = null;
+    if (begin >= 0 && end >= 0 && doc.lastIndexOf("\\end{figure", range.from) < begin) {
+      const around = doc.slice(begin, range.from) + doc.slice(range.to, end);
+      label = /\\label\{([^}]*)\}/.exec(around)?.[1] ?? null;
+      const at = /\\caption(\[[^\]]*\])?\{/.exec(around);
+      if (at) caption = group(around, at.index + at[0].length - 1)?.replace(/\s+/g, " ").trim() || null;
+    }
+    out.push({ ...range, line: doc.slice(0, range.from).split("\n").length, label, caption });
+  }
+  return out;
+}
+
+/** A short stable name for a picture's preview document, for caching its compiled PDF. */
+export function snippetName(source: string): string {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < source.length; i++) h = Math.imul(h ^ source.charCodeAt(i), 0x01000193);
+  return `t-${(h >>> 0).toString(16)}-${source.length.toString(16)}`;
 }

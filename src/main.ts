@@ -30,6 +30,7 @@ import { checkBeforeSubmitting } from "./check";
 import { newSketch } from "./sketch";
 import { editTable } from "./tables";
 import { previewTikz } from "./tikz";
+import { PICTURE_FILE } from "./tikzsource";
 import { insertTikzPicture } from "./tikzwrite";
 import { startTour } from "./tour";
 import { copyAsLatex, exportNotePdf, isNote, newNote, notePrefs, quickNote, refreshNotes, todaysNote } from "./notes";
@@ -212,8 +213,8 @@ register(
   { id: "help.shortcuts", group: "Help", title: "Keyboard Shortcuts", run: commandPalette },
   { id: "help.tour", group: "Help", title: "Take the Tour", enabled: hasProject, run: startTour },
   { id: "edit.table", group: "Edit", title: "Edit Table…", enabled: () => !!activeEditor()?.dom.dataset.path?.endsWith(".tex"), run: editTable },
-  { id: "edit.tikz", group: "Edit", title: "Preview TikZ", keys: "Mod-Alt-k", enabled: () => !!activeEditor()?.dom.dataset.path?.endsWith(".tex"), run: () => previewTikz(activeEditor()) },
-  { id: "edit.tikzInsert", group: "Edit", title: "Insert TikZ Picture…", enabled: () => !!activeEditor()?.dom.dataset.path?.endsWith(".tex"), run: insertTikzPicture },
+  { id: "edit.tikz", group: "Edit", title: "Preview TikZ", keys: "Mod-Alt-k", enabled: () => PICTURE_FILE.test(activeEditor()?.dom.dataset.path ?? ""), run: () => previewTikz(activeEditor()) },
+  { id: "edit.tikzInsert", group: "Edit", title: "Insert TikZ Picture…", enabled: () => PICTURE_FILE.test(activeEditor()?.dom.dataset.path ?? ""), run: insertTikzPicture },
   { id: "file.sketch", group: "File", title: "Insert Sketch…", keys: "Mod-Alt-d", enabled: () => isNote(activeEditor()?.dom.dataset.path), run: newSketch },
   { id: "file.review", group: "File", title: "Review Cards", enabled: hasProject, run: () => reviewCards() },
   { id: "file.anki", group: "File", title: "Export Cards for Anki…", enabled: hasProject, run: exportForAnki },

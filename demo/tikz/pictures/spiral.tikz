@@ -1,0 +1,6 @@
+\begin{tikzpicture}
+  \draw[ink!30] (-2,-2) grid (2,2);
+  \draw[amber, very thick, domain=0:12.5, samples=200, smooth, variable=\t]
+    plot ({0.15*\t*cos(\t r)}, {0.15*\t*sin(\t r)});
+  \fill[ink] (0,0) circle (1.5pt);
+\end{tikzpicture}

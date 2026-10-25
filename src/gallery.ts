@@ -2,13 +2,16 @@
 // date, and whether the paper uses it.
 import { invoke } from "@tauri-apps/api/core";
 import * as pdfjs from "pdfjs-dist";
-import { $, root, setStatus, showLog } from "./core";
+import { $, baseName, mainFile, root, setStatus, showLog } from "./core";
+import { view } from "./editor";
 import { ICONS } from "./icons";
 import { insertFigureIntoPaper } from "./notebook";
-import { openFile } from "./project";
+import { openFile, revealLine } from "./project";
 import { refreshFiles } from "./sidebar";
-import { displayValue, FigureEntry, refreshIndex, RunInfo, ValueEntry } from "./texindex";
-import { RunResult } from "./types";
+import { displayValue, FigureEntry, refreshIndex, RunInfo, TikzEntry, ValueEntry } from "./texindex";
+import { openTikzPreview } from "./tikz";
+import { previewDocument, snippetName } from "./tikzsource";
+import { CompileResult, RunResult } from "./types";
 
 let job = 0;
 
@@ -38,19 +41,92 @@ function badge(text: string, kind: string, title: string): HTMLElement {
 async function drawThumb(holder: HTMLElement, id: string, mine: number) {
   try {
     const bytes = new Uint8Array(await invoke<ArrayBuffer>("read_binary", { root, rel: `figures/${id}.pdf` }));
-    const page = await (await pdfjs.getDocument({ data: bytes }).promise).getPage(1);
-    const base = page.getViewport({ scale: 1 });
-    const cssWidth = Math.max(120, holder.clientWidth || 200);
-    const dpr = window.devicePixelRatio || 1;
-    const vp = page.getViewport({ scale: (cssWidth / base.width) * dpr });
-    const canvas = document.createElement("canvas");
-    canvas.width = vp.width;
-    canvas.height = vp.height;
-    await page.render({ canvasContext: canvas.getContext("2d")!, viewport: vp }).promise;
-    if (mine === job) holder.replaceChildren(canvas);
+    await drawPdf(holder, bytes, mine);
   } catch {
     if (mine === job) holder.textContent = "Not generated yet";
   }
+}
+
+/** Page one of a PDF, as wide as `holder`. */
+async function drawPdf(holder: HTMLElement, bytes: Uint8Array, mine: number) {
+  const page = await (await pdfjs.getDocument({ data: bytes }).promise).getPage(1);
+  const base = page.getViewport({ scale: 1 });
+  const cssWidth = Math.max(120, holder.clientWidth || 200);
+  const dpr = window.devicePixelRatio || 1;
+  const vp = page.getViewport({ scale: (cssWidth / base.width) * dpr });
+  const canvas = document.createElement("canvas");
+  canvas.width = vp.width;
+  canvas.height = vp.height;
+  await page.render({ canvasContext: canvas.getContext("2d")!, viewport: vp }).promise;
+  if (mine === job) holder.replaceChildren(canvas);
+}
+
+// ---------- TikZ pictures ----------
+/** Preview documents that didn't compile, so they aren't tried again on every refresh. */
+const failedSnippets = new Set<string>();
+/** Thumbnails compile one at a time, behind the live preview rather than beside it. */
+let thumbQueue: Promise<void> = Promise.resolve();
+
+/** The picture compiled on its own (cached by its source in build/tikz/), as PDF bytes. */
+async function tikzPdf(picture: string, paper: string): Promise<Uint8Array | null> {
+  for (const minimal of [false, true]) {
+    const { source } = previewDocument(paper, picture, minimal);
+    const name = snippetName(source);
+    if (failedSnippets.has(name)) continue;
+    const rel = `build/tikz/${name}.pdf`;
+    const cached = await invoke<ArrayBuffer>("read_binary", { root, rel }).catch(() => null);
+    if (cached) return new Uint8Array(cached);
+    const result = await invoke<CompileResult>("compile_snippet", { root, source, name }).catch(() => null);
+    if (result?.ok && result.pdf) return new Uint8Array(await invoke<ArrayBuffer>("read_binary", { root, rel: result.pdf }));
+    failedSnippets.add(name);
+  }
+  return null;
+}
+
+function tikzCard(entry: TikzEntry, mine: number, paper: Promise<string>): HTMLElement {
+  const card = document.createElement("div");
+  card.className = "gallery-card";
+  const where = `${entry.file}:${entry.line}`;
+  const show = async () => {
+    await revealLine(entry.file, entry.line);
+    if (!$("editor").hidden) openTikzPreview(view);
+  };
+
+  const thumb = document.createElement("button");
+  thumb.className = "gallery-thumb";
+  thumb.title = `Show ${where} with its preview`;
+  thumb.onclick = show;
+  card.appendChild(thumb);
+
+  const row = document.createElement("div");
+  row.className = "gallery-row";
+  const id = document.createElement("span");
+  id.className = "gallery-id";
+  id.textContent = entry.label ?? `${baseName(entry.file)}, line ${entry.line}`;
+  id.title = entry.caption ?? id.textContent;
+  row.appendChild(id);
+  card.appendChild(row);
+
+  const actions = document.createElement("div");
+  actions.className = "gallery-row";
+  const source = document.createElement("button");
+  source.className = "gallery-source";
+  source.textContent = where;
+  source.title = `Show ${where} with its preview`;
+  source.onclick = show;
+  actions.appendChild(source);
+  card.appendChild(actions);
+
+  requestAnimationFrame(() => {
+    thumbQueue = thumbQueue.then(async () => {
+      if (mine !== job) return;
+      const pdf = await tikzPdf(entry.source, await paper);
+      if (mine !== job) return;
+      if (pdf) await drawPdf(thumb, pdf, mine);
+      else thumb.textContent = "Doesn't compile yet";
+    }).catch(() => {});
+  });
+  return card;
 }
 
 async function rerun(notebook: string, button: HTMLButtonElement) {
@@ -163,12 +239,17 @@ export async function renderGallery() {
   if (mine !== job) return;
 
   const frag = document.createDocumentFragment();
-  if (!index.figures.length && !index.values.length) {
+  if (!index.figures.length && !index.values.length && !index.tikz.length) {
     frag.appendChild(note("No figures yet. Add a Figure cell to a notebook and it shows up here, with its status in the paper."));
   }
   if (index.figures.length) {
     frag.appendChild(heading("Figures"));
     for (const fig of index.figures) frag.appendChild(figureCard(fig, mine, index.runs[fig.notebook]));
+  }
+  if (index.tikz.length) {
+    frag.appendChild(heading("TikZ"));
+    const paper = invoke<string>("read_file", { root, rel: mainFile }).catch(() => "");
+    for (const entry of index.tikz) frag.appendChild(tikzCard(entry, mine, paper));
   }
   if (index.values.length) {
     frag.appendChild(heading("Values"));

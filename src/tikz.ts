@@ -4,20 +4,21 @@
 import { invoke } from "@tauri-apps/api/core";
 import { EditorView } from "@codemirror/view";
 import * as pdfjs from "pdfjs-dist";
-import { clamp, current, mainFile, root, setStatus, showLog } from "./core";
+import { clamp, current, insideProject, mainFile, root, setStatus, showLog } from "./core";
 import { explain, parseLog } from "./diagnostics";
+import { openPalette, promptInput } from "./palette";
+import { refreshFiles } from "./sidebar";
 import { closeSide, showInSide, sideFile } from "./split";
 import {
-  formatCoordinate, fromPage, instrument, INSTRUMENT_MACROS, pictureAt, previewDocument, readMarks, scanPicture,
+  formatCoordinate, fromPage, instrument, INSTRUMENT_MACROS, pictureAt, PICTURE_FILE, previewDocument, readMarks, scanPicture,
   toPage, unclosedParen, type Marks, type PictureScan,
 } from "./tikzsource";
 import { STARTERS, starterText } from "./tikzwrite";
+import type { CompileResult } from "./types";
 
 const PREVIEW_TEX = "build/tikz/preview.tex";
 const ZOOM_MIN = 0.25;
 const ZOOM_MAX = 6;
-
-interface CompileResult { ok: boolean; log: string; pdf: string | null; }
 
 // ---------- the pane ----------
 interface Pane {
@@ -278,6 +279,103 @@ async function readLog(pdf: string): Promise<string> {
   return bytes ? new TextDecoder().decode(bytes) : "";
 }
 
+// ---------- export ----------
+const writeBinary = (rel: string, bytes: Uint8Array) =>
+  invoke("write_binary", bytes, { headers: { "x-root": encodeURIComponent(root ?? ""), "x-rel": encodeURIComponent(rel) } });
+
+/** A file name for the picture shown: its figure's label without `fig:`, or its line. */
+function exportName(): string {
+  const doc = pane!.editor.state.doc.toString();
+  const picture = lastPicture ? pictureAt(doc, lastPicture.from) : null;
+  const figureEnd = picture ? doc.indexOf("\\end{figure", picture.to) : -1;
+  const label = picture && figureEnd >= 0 ? /\\label\{(?:fig:)?([^}]+)\}/.exec(doc.slice(picture.to, figureEnd))?.[1] : undefined;
+  return (label ?? `tikz-${lastPicture?.line ?? 1}`).replace(/[^\w-]+/g, "-");
+}
+
+/** Page one of the picture at `dpi`, as PNG bytes. */
+async function pngBytes(pdfBytes: Uint8Array, dpi: number): Promise<Uint8Array> {
+  const pdf = await pdfjs.getDocument({ data: pdfBytes.slice() }).promise;
+  try {
+    const page = await pdf.getPage(1);
+    const vp = page.getViewport({ scale: dpi / 72 });
+    const canvas = document.createElement("canvas");
+    canvas.width = vp.width;
+    canvas.height = vp.height;
+    await page.render({ canvasContext: canvas.getContext("2d")!, viewport: vp }).promise;
+    const blob = await new Promise<Blob | null>((done) => canvas.toBlob(done, "image/png"));
+    if (!blob) throw new Error("the picture couldn't be drawn");
+    return new Uint8Array(await blob.arrayBuffer());
+  } finally {
+    pdf.destroy();
+  }
+}
+
+async function saveAs(rel: string, pdf: Uint8Array) {
+  const ext = rel.slice(rel.lastIndexOf(".") + 1).toLowerCase();
+  if (ext === "pdf") await writeBinary(rel, pdf);
+  else if (ext === "png") await writeBinary(rel, await pngBytes(pdf, 300));
+  else {
+    // the converter reads a file, so the PDF goes in the build folder first
+    await writeBinary("build/tikz/export.pdf", pdf);
+    await invoke("pdf_to_svg", { root, from: "build/tikz/export.pdf", to: rel });
+  }
+}
+
+/** Swap the picture in the source for the image, keeping its TikZ in a .tikz file beside it. */
+async function replaceWithImage(rel: string) {
+  const editor = pane!.editor;
+  const doc = editor.state.doc.toString();
+  const picture = lastPicture ? pictureAt(doc, lastPicture.from) : null;
+  if (!picture) return;
+  const tikzRel = rel.replace(/\.\w+$/, ".tikz");
+  await invoke("write_file", { root, rel: tikzRel, content: doc.slice(picture.from, picture.to) + "\n" });
+  const graphic = rel.replace(/\.pdf$/, "");
+  editor.dispatch({
+    changes: { from: picture.from, to: picture.to, insert: `\\includegraphics{${graphic}} % drawn from ${tikzRel}` },
+    userEvent: "input",
+  });
+  const preamble = await paperText(editor);
+  const needs = /\\usepackage(\[[^\]]*\])?\{[^}]*\bgraphicx\b/.test(preamble) ? "" : " Add \\usepackage{graphicx} to the preamble.";
+  setStatus(`The picture is now ${rel}; its TikZ is in ${tikzRel}.${needs}`, "ok");
+}
+
+function exportPicture() {
+  if (!pane || !shownPdf || drag) return;
+  const pdf = shownPdf;
+  const name = exportName();
+  const ask = (ext: string, then?: (rel: string) => Promise<void>) => () => promptInput({
+    placeholder: "Save the picture as",
+    hint: "Path inside the project. Saving again replaces the file.",
+    value: `figures/${name}.${ext}`,
+    validate: (rel) => {
+      if (!insideProject(rel)) return "The file has to live inside the project.";
+      if (!rel.toLowerCase().endsWith(`.${ext}`)) return `The name has to end in .${ext}.`;
+      return null;
+    },
+    submit: async (rel) => {
+      try {
+        setStatus(`Saving ${rel}…`, "busy");
+        await saveAs(rel, pdf);
+        await refreshFiles();
+        if (then) await then(rel);
+        else setStatus(`Saved ${rel}`, "ok");
+      } catch (e) {
+        setStatus(`Couldn't save ${rel}: ${e}`, "err");
+      }
+    },
+  });
+  openPalette({
+    placeholder: "Export the picture…",
+    empty: "No format by that name",
+    items: [
+      { label: "PDF", detail: "Sharp at any size; what LaTeX includes best", run: ask("pdf") },
+      { label: "SVG", detail: "For the web and slides", run: ask("svg") },
+      { label: "PNG", detail: "300 dpi, for documents that take only images", run: ask("png") },
+      { label: "Replace with the image", detail: "Save as PDF and \\includegraphics it here; the TikZ goes in a .tikz file", run: ask("pdf", replaceWithImage) },
+    ],
+  });
+}
+
 // ---------- compiling ----------
 async function compileNow() {
   if (!open() || !root) return;
@@ -420,7 +518,8 @@ function buildPane(editor: EditorView): Pane {
     button("icon-btn", "", "Zoom in", () => setZoom(zoom * 1.25), svg('<path d="M3.5 8h9M8 3.5v9"/>')),
   );
   const log = button("btn tikz-log", "Log", "Show the log of the last drawing", () => showLog("TikZ preview", lastLog));
-  bar.append(time, zoomBox, log);
+  const save = button("btn tikz-log", "Export…", "Save the picture as PDF, SVG or PNG", exportPicture);
+  bar.append(time, zoomBox, log, save);
   const stage = document.createElement("div");
   stage.className = "tikz-stage";
   // pinch, or Cmd + scroll, zooms
@@ -445,8 +544,8 @@ export async function previewTikz(editor: EditorView | null) {
     closeSide();
     return;
   }
-  if (!editor || !editor.dom.dataset.path?.endsWith(".tex")) {
-    setStatus("Put the cursor in a .tex file to preview or insert a TikZ picture");
+  if (!editor || !PICTURE_FILE.test(editor.dom.dataset.path ?? "")) {
+    setStatus("Put the cursor in a .tex or .tikz file to preview or insert a TikZ picture");
     return;
   }
   const pos = editor.state.selection.main.head;

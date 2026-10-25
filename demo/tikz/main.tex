@@ -134,6 +134,17 @@ see them, and drag one.
   \label{fig:scopes}
 \end{figure}
 
+\section{A picture in its own file}
+\texttt{pictures/spiral.tikz} holds only the picture, and the paper inputs it. Open the file and
+preview it: it still uses the paper's colours.
+
+\begin{figure}[ht]
+  \centering
+  \input{pictures/spiral.tikz}
+  \caption{An Archimedean spiral.}
+  \label{fig:spiral}
+\end{figure}
+
 \section{Errors}
 Uncomment the line below and the preview shows the error with a button that jumps to the
 line in this file.
