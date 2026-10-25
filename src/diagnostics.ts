@@ -41,7 +41,8 @@ export function parseLog(log: string, mainFile: string): Problem[] {
   const culprit = (from: number): { line: number; token: string } | null => {
     for (let i = from; i < Math.min(from + 15, lines.length); i++) {
       const m = AT_LINE.exec(lines[i]);
-      if (m) return { line: Number(m[1]), token: m[2].trim().split(/\s+/).pop() ?? "" };
+      // the last command on the line, even when text runs into it (Section~\reff)
+      if (m) return { line: Number(m[1]), token: /\\[a-zA-Z@]+\*?$/.exec(m[2].trim())?.[0] ?? m[2].trim().split(/\s+/).pop() ?? "" };
     }
     return null;
   };
