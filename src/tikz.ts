@@ -11,6 +11,7 @@ import {
   formatCoordinate, fromPage, instrument, INSTRUMENT_MACROS, pictureAt, previewDocument, readMarks, scanPicture,
   toPage, unclosedParen, type Marks, type PictureScan,
 } from "./tikzsource";
+import { STARTERS, starterText } from "./tikzwrite";
 
 const PREVIEW_TEX = "build/tikz/preview.tex";
 const ZOOM_MIN = 0.25;
@@ -386,9 +387,6 @@ export function tikzChanged(editor: EditorView, docChanged: boolean) {
   else renderHandles();
 }
 
-const STARTER = (indent: string) =>
-  `\\begin{figure}[ht]\n${indent}  \\centering\n${indent}  \\begin{tikzpicture}\n${indent}    \\draw[->] (0,0) -- (3,0) node[right] {$x$};\n${indent}    \\draw[->] (0,0) -- (0,2) node[above] {$y$};\n${indent}    \\draw[thick] (0,0) .. controls (1,2) and (2,0) .. (3,1.5);\n${indent}  \\end{tikzpicture}\n${indent}  \\caption{}\n${indent}  \\label{fig:}\n${indent}\\end{figure}\n`;
-
 function button(className: string, label: string, title: string, onclick: () => void, svg?: string): HTMLButtonElement {
   const b = document.createElement("button");
   b.className = className;
@@ -456,11 +454,25 @@ export async function previewTikz(editor: EditorView | null) {
     const at = editor.state.doc.lineAt(pos);
     const indent = /^[ \t]*/.exec(at.text)![0];
     const insertAt = at.text.trim() ? at.to : at.from;
-    const text = (at.text.trim() ? "\n" + indent : "") + STARTER(indent);
+    const text = (at.text.trim() ? "\n" : "") + starterText(STARTERS[0], indent);
     editor.dispatch({ changes: { from: insertAt, insert: text }, userEvent: "input" });
     const inside = editor.state.doc.toString().indexOf("\\begin{tikzpicture}", insertAt) + "\\begin{tikzpicture}".length;
     editor.dispatch({ selection: { anchor: inside } });
   }
+  await openPane(editor);
+}
+
+/** Open the preview beside `editor`, or redraw it for the picture now at the cursor. */
+export async function openTikzPreview(editor: EditorView) {
+  if (open() && pane!.editor === editor) {
+    compileSoon(0);
+    return;
+  }
+  if (open()) await closeSide();
+  await openPane(editor);
+}
+
+async function openPane(editor: EditorView) {
   const moved = sideFile;
   pane = buildPane(editor);
   lastSource = "";

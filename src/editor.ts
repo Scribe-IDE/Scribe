@@ -27,6 +27,7 @@ import { reportCursor } from "./statusbar";
 import { closeTab } from "./tabs";
 import { displayValue, index, scanLabels } from "./texindex";
 import { tikzChanged } from "./tikz";
+import { TIKZ_LIBRARIES, tikzCompletion } from "./tikzwrite";
 import { zoteroCiteCompletion } from "./zotero";
 
 // ---------- autocompletion ----------
@@ -68,11 +69,12 @@ const ENVIRONMENTS = [
   "document", "abstract", "figure", "table", "tabular", "equation", "align", "itemize", "enumerate",
   "description", "center", "theorem", "lemma", "proof", "definition", "quote", "verbatim", "minipage",
   "cases", "matrix", "pmatrix", "bmatrix", "frame", "equation*", "align*", "figure*", "table*",
+  "tikzpicture", "scope", "axis", "tikzcd",
 ];
 
 const PACKAGES = [
   "amsmath", "amssymb", "amsthm", "graphicx", "hyperref", "booktabs", "xcolor", "geometry", "natbib",
-  "biblatex", "cleveref", "siunitx", "subcaption", "tikz", "listings", "microtype", "scribe-figures",
+  "biblatex", "cleveref", "siunitx", "subcaption", "tikz", "pgfplots", "tikz-cd", "circuitikz", "listings", "microtype", "scribe-figures",
 ];
 
 // \begin{name} completes to the whole environment, with the cursor on the empty line inside.
@@ -114,6 +116,7 @@ function argumentOptions(command: string, doc: string): Completion[] | null {
     return index.texFiles.map((f) => ({ label: f.replace(/\.tex$/, ""), type: "text" }));
   }
   if (command === "includegraphics") return index.graphics.map((label) => ({ label, type: "text" }));
+  if (command === "usetikzlibrary") return TIKZ_LIBRARIES.map((label) => ({ label, type: "namespace" }));
   if (command === "usepackage" || command === "RequirePackage") return PACKAGES.map((label) => ({ label, type: "namespace" }));
   return null;
 }
@@ -296,7 +299,7 @@ export function languageFor(path: string): Extension {
 
 export function completionFor(path: string): Extension {
   if (/\.(tex|sty|cls|bib)$/.test(path)) {
-    return autocompletion({ override: [latexCompletion, zoteroCiteCompletion] });
+    return autocompletion({ override: [latexCompletion, zoteroCiteCompletion, tikzCompletion] });
   }
   if (isNote(path)) return autocompletion({ override: [notesCompletion] });
   // Python gets built-in completions from the language mode

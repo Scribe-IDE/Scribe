@@ -95,6 +95,7 @@ export const COMMAND_ICONS: Record<string, string> = {
   "help.tour": icon('<circle cx="8" cy="8" r="5.75"/><path d="M10.25 5.75l-1.5 3-3 1.5 1.5-3z"/>'),
   "edit.table": icon('<rect x="2.25" y="3" width="11.5" height="10" rx="1.25"/><path d="M2.25 6.5h11.5M2.25 9.75h11.5M6.25 3v10M10 3v10"/>'),
   "edit.tikz": icon('<circle cx="4.5" cy="11.5" r="1.75"/><circle cx="11.5" cy="4.5" r="1.75"/><path d="M5.75 10.25l4.5-4.5M2.25 2.75v10.5a.5.5 0 00.5.5h10.5"/>'),
+  "edit.tikzInsert": icon('<path d="M2.75 13.25l4-6 3 3.5 3.5-6"/><path d="M11 2.25v4M9 4.25h4"/>'),
   "file.sketch": icon('<path d="M2.5 12.5c2-3 3-6 4.5-6s.5 4 2 4 2-5 4.5-6.5"/>'),
   "file.review": icon('<rect x="3.75" y="2.25" width="9" height="11.5" rx="1.25"/><path d="M2 4.5v8.25a1.5 1.5 0 001.5 1.5h6.75M6.5 6.5h3.5M6.5 9h2.5"/>'),
   "file.anki": icon('<path d="M8 2.75v7.5M5 7.25l3 3 3-3"/><path d="M2.75 10.5v1.75a1 1 0 001 1h8.5a1 1 0 001-1V10.5"/>'),
