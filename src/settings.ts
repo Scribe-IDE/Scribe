@@ -10,6 +10,7 @@ import { refreshSpelling, spellPrefs } from "./spell";
 import { refreshSidePrefs, sideView } from "./split";
 import { refreshTerminalTheme } from "./terminal";
 import { lintPrefs, saveLintPrefs } from "./texassist";
+import { renderTrackStatus, trackPrefs } from "./track";
 import { forceLinting } from "@codemirror/lint";
 
 // ---------- settings ----------
@@ -32,10 +33,12 @@ export interface Settings {
   mathPreview: boolean;
   /** Row height in lists and tabs. */
   density: "comfortable" | "compact";
+  /** Typing and deleting are marked with \added and \deleted. */
+  trackChanges: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  fontSize: 13, order: {}, compileOnSave: false, compileOnType: false, vim: false, lineNumbers: "absolute", cellLineNumbers: false, spellCheck: true, mathPreview: true, density: "comfortable",
+  fontSize: 13, order: {}, compileOnSave: false, compileOnType: false, vim: false, lineNumbers: "absolute", cellLineNumbers: false, spellCheck: true, mathPreview: true, density: "comfortable", trackChanges: false,
 };
 export const FONT_MIN = 10;
 export const FONT_MAX = 24;
@@ -75,6 +78,7 @@ export async function loadSettings() {
     settings.spellCheck = parsed.spellCheck !== false;
     settings.mathPreview = parsed.mathPreview !== false;
     if (parsed.density === "compact") settings.density = "compact";
+    settings.trackChanges = parsed.trackChanges === true;
   } catch {}
   applySettings();
 }
@@ -99,6 +103,8 @@ export function applySettings() {
   $<HTMLInputElement>("setting-lint").checked = lintPrefs.on;
   spellPrefs.on = settings.spellCheck;
   $<HTMLInputElement>("setting-math").checked = settings.mathPreview;
+  trackPrefs.on = settings.trackChanges;
+  renderTrackStatus();
   mathPrefs.on = settings.mathPreview;
 
   Object.assign(editorPrefs, {

@@ -25,6 +25,7 @@ import { appearance, appearanceListeners, applyAppearance, isDark, updateAppeara
 import { focusOn, toggleFocus } from "./focus";
 import { editEquation } from "./equation";
 import { compareWithVersion, quoteChange, responseLetter } from "./revisions";
+import { addComment, ensurePreamble, nextChange, resolveFile, resolveHere, toggleMarksInPdf } from "./track";
 import { editWithAi } from "./aiedit";
 import { initAiSettings } from "./aisettings";
 import { checkForUpdates, checkForUpdatesLater } from "./updates";
@@ -130,6 +131,14 @@ register(
   { id: "file.export", group: "File", title: "Export for Submission…", run: exportForSubmission, enabled: hasProject },
   { id: "file.response", group: "Review", title: "Response to Reviewers", enabled: hasProject, run: responseLetter },
   { id: "build.compare", group: "Review", title: "Compare with Earlier Version…", enabled: () => hasProject() && !!mainFile, run: compareWithVersion },
+  { id: "review.track", group: "Review", title: "Track Changes", keys: "Mod-Shift-e", enabled: hasProject, checked: () => settings.trackChanges, run: toggleTracking },
+  { id: "review.comment", group: "Review", title: "Add Comment…", keys: "Mod-Alt-m", enabled: () => !!activeEditor()?.dom.dataset.path?.endsWith(".tex"), run: addComment },
+  { id: "review.next", group: "Review", title: "Next Change or Comment", keys: "Mod-Alt-.", enabled: () => !!activeEditor()?.dom.dataset.path?.endsWith(".tex"), run: nextChange },
+  { id: "review.accept", group: "Review", title: "Accept Change", enabled: () => !!activeEditor()?.dom.dataset.path?.endsWith(".tex"), run: () => resolveHere(true) },
+  { id: "review.reject", group: "Review", title: "Reject Change", enabled: () => !!activeEditor()?.dom.dataset.path?.endsWith(".tex"), run: () => resolveHere(false) },
+  { id: "review.acceptAll", group: "Review", title: "Accept All in File", enabled: () => !!activeEditor()?.dom.dataset.path?.endsWith(".tex"), run: () => resolveFile(true) },
+  { id: "review.rejectAll", group: "Review", title: "Reject All in File", enabled: () => !!activeEditor()?.dom.dataset.path?.endsWith(".tex"), run: () => resolveFile(false) },
+  { id: "review.hideInPdf", group: "Review", title: "Show Changes in PDF", enabled: hasProject, run: toggleMarksInPdf },
   { id: "build.quoteChange", group: "Review", title: "Quote Selection for the Response", enabled: hasPdfSelection, run: quoteChange },
   { id: "file.close", group: "File", title: "Close Project", run: closeProject, enabled: hasProject },
 
@@ -385,7 +394,11 @@ createMenubar($("menubar"), [
   {
     title: "Review",
     icon: MENU_ICON.review,
-    entries: ["build.check", "-", "build.compare", "file.response", "build.quoteChange"],
+    entries: [
+      "review.track", "review.comment", "-",
+      "review.next", "review.accept", "review.reject", "review.acceptAll", "review.rejectAll", "review.hideInPdf", "-",
+      "build.check", "-", "build.compare", "file.response", "build.quoteChange",
+    ],
   },
   {
     title: "Notes",
@@ -473,6 +486,16 @@ async function toggleDarkPdf() {
 
 $("setting-snippets").addEventListener("click", openSnippetEditor);
 $("tab-assistant").onclick = () => showSidebar("assistant");
+$("sb-track").onclick = () => toggleTracking();
+
+/** Track changes on or off for the project; turning it on readies the paper's preamble. */
+async function toggleTracking() {
+  const on = !settings.trackChanges;
+  const editor = activeEditor();
+  if (on && editor?.dom.dataset.path?.endsWith(".tex")) await ensurePreamble(editor);
+  updateSettings({ trackChanges: on });
+  setStatus(on ? "Tracking changes: what you type and delete is marked" : "No longer tracking changes", "ok");
+}
 initAiSettings();
 
 // the look is the computer's, not the project's: applied before any project opens

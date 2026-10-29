@@ -77,6 +77,11 @@ request needs is sent, and the panel says what that is.
 refers to, stale notebooks, leftover TODOs, and what arXiv would object to. Export bundles the
 sources into a zip ready to upload.
 
+**Track changes and comments.** With Track Changes on, what you type and delete is marked in
+the source with the standard `changes` package, so co-authors see the marks in the PDF and in
+any editor, and they travel with git. Comments sit in the margin; the Review panel lists every
+change with Accept and Reject.
+
 **Revisions.** Compare the paper with any earlier commit or saved version: latexdiff marks what
 changed, in the PDF. A response letter to the reviewers starts from a template, and text
 selected in the marked-up PDF is quoted into it with its page.

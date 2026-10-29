@@ -30,6 +30,7 @@ import { focusChanged } from "./focus";
 import { snippetCompletions, snippetTab } from "./snippets";
 import { texAssist } from "./texassist";
 import { aiSuggestions } from "./aicomplete";
+import { trackExtension } from "./track";
 import { tikzChanged } from "./tikz";
 import { TIKZ_LIBRARIES, tikzCompletion } from "./tikzwrite";
 import { zoteroCiteCompletion } from "./zotero";
@@ -349,6 +350,7 @@ export function createEditorState(doc: string, path: string, hooks: EditorHooks 
       mathPreview(path),
       texAssist(path),
       aiSuggestions(path),
+      trackExtension(path),
       notesExtension(path),
       EditorView.editorAttributes.of({ "data-path": path }), // lets helpers know what kind of file this is
       themeConf.of(editorTheme(editorPrefs.dark)),

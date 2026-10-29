@@ -2541,3 +2541,41 @@ body.dragging-file #files * { cursor: grabbing; }
 .problem-fix { margin-left: 8px; padding: 1px 8px; font-size: 11px; color: var(--accent); border: 1px solid color-mix(in srgb, var(--accent) 45%, transparent); border-radius: var(--r-sm); flex-shrink: 0; cursor: pointer; }
 .problem-fix:hover { background: var(--accent-dim); }
 #ai-fields .settings-row input[type="text"], #ai-fields .settings-row input[type="password"] { width: 160px; }
+
+/* tracked changes and comments in the editor: the commands quiet, the text they mark in colour */
+.cm-tc-cmd { color: var(--faint); font-size: .86em; opacity: .7; }
+.cm-tc-added { color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--ok) 55%, transparent); text-underline-offset: 3px; }
+.cm-tc-deleted { color: var(--err); background: var(--err-dim); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--err) 60%, transparent); }
+.cm-tc-comment { color: var(--fg-dim); background: var(--accent-dim); border-radius: 3px; font-style: italic; }
+.cm-tc-highlight { background: var(--accent-dim); border-bottom: 2px solid var(--accent); }
+
+/* authors' colours, as the changes package names them */
+:root { --tc-orange: #e0913a; --tc-blue: #5b8ee6; --tc-teal: #3aa89c; --tc-violet: #a77be0; --tc-red: #e06b6b; --tc-olive: #9aa03e; --tc-magenta: #d465b8; --tc-cyan: #3fb4cf; }
+
+/* the Review panel's cards */
+.review-file { display: flex; align-items: center; gap: 6px; padding: 8px 8px 4px; }
+.review-file-name { flex: 1; min-width: 0; font: 12px var(--font-mono); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.review-notes-file { padding: 6px 8px 2px; }
+.review-all { height: 22px; padding: 0 8px; font-size: 11px; }
+.review-card { margin: 4px 8px; padding: 8px 10px; background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--border-hi); border-radius: var(--r); cursor: pointer; }
+.review-card:hover { border-color: var(--border-hi); }
+.review-card.review-added, .review-card.review-replaced { border-left-color: var(--ok); }
+.review-card.review-deleted { border-left-color: var(--err); }
+.review-card.review-comment, .review-card.review-highlight { border-left-color: var(--accent); }
+.review-card-head { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; font-size: 11px; }
+.review-author { padding: 0 5px; font: 600 10px/16px var(--font); color: #fff; background: var(--author, var(--muted)); border-radius: 3px; }
+.review-label { color: var(--fg-dim); font-weight: 500; }
+.review-where { margin-left: auto; color: var(--faint); }
+.review-card ins, .review-card del { text-decoration: none; }
+.review-card ins { color: var(--ok); }
+.review-card del { color: var(--err); text-decoration: line-through; }
+.review-change { display: block; font-size: 12.5px; line-height: 1.45; overflow-wrap: anywhere; }
+.review-arrow { color: var(--faint); }
+.review-note { font-size: 12.5px; line-height: 1.45; color: var(--fg); overflow-wrap: anywhere; }
+.review-quote { margin-top: 4px; padding-left: 8px; font-size: 12px; color: var(--muted); border-left: 2px solid var(--accent); overflow-wrap: anywhere; }
+.review-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px; }
+.review-actions .btn { height: 22px; padding: 0 9px; font-size: 11px; }
+
+/* tracking on, in the status bar */
+.sb-track { color: var(--accent); font-weight: 500; }
+.sb-track::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 6px; border-radius: 50%; background: var(--accent); vertical-align: 1px; }

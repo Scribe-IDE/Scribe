@@ -2,6 +2,13 @@
 
 Each version's notes become its release notes on GitHub.
 
+## Unreleased
+
+- Track changes and comments, kept in the source with the `changes` package: typing and deleting
+  are marked as you go, comments sit in the margin of the PDF, and the Review panel accepts or
+  rejects each one.
+- Shorter menus, with Insert, Review and Notes menus of their own.
+
 ## 1.1.0
 
 The first release.
