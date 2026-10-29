@@ -2457,3 +2457,30 @@ body.dragging-file #files * { cursor: grabbing; }
 .cm-diagnosticSource { margin-top: 2px; font-size: 11px; color: var(--faint); opacity: 1; }
 .cm-tooltip .cm-diagnosticAction { margin: 6px 6px 0 0; padding: 2px 8px; font: 500 12px var(--font); color: var(--on-accent); background: var(--accent); border-radius: var(--r-sm); }
 .cm-tooltip .cm-diagnosticAction + .cm-diagnosticAction { color: var(--fg-dim); background: var(--raised); border: 1px solid var(--border-hi); }
+
+/* Edit Equation: the formula typed visually, a check that it typesets, the LaTeX it makes */
+.eq-editor { display: flex; flex-direction: column; gap: 12px; height: 100%; padding: 0 0 16px; background: var(--bg); overflow: auto; }
+.eq-bar { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; background: var(--panel); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.eq-field {
+  margin: 8px 16px 0; padding: 14px 16px; font-size: 20px; color: var(--fg); background: var(--surface);
+  border: 1px solid var(--border-hi); border-radius: var(--r-lg);
+  --caret-color: var(--accent); --selection-background-color: var(--select); --selection-color: var(--fg);
+  --contains-highlight-background-color: var(--accent-dim); --placeholder-color: var(--faint);
+  --primary-color: var(--accent); --smart-fence-color: var(--muted);
+}
+.eq-field:focus-within { border-color: var(--accent); outline: none; }
+.eq-field::part(menu-toggle) { display: none; }
+.eq-check { margin: 0 16px; font-size: 12px; }
+.eq-check.ok { color: var(--ok); }
+.eq-check.err { color: var(--err); }
+.eq-source { margin: 0 16px; padding: 10px 12px; font: 12px/1.5 var(--font-mono); color: var(--fg-dim); white-space: pre-wrap; word-break: break-word; background: var(--panel); border-radius: var(--r); user-select: text; -webkit-user-select: text; }
+.eq-hint { margin: 0 16px; font-size: 12px; line-height: 1.5; color: var(--faint); }
+
+/* Settings > Snippets */
+.snippet-editor { width: min(680px, calc(100vw - 48px)); }
+.snippet-title { margin: 0; font: 500 15px var(--font); }
+.snippet-list { flex: 1; overflow: auto; padding: 12px 18px; display: flex; flex-direction: column; gap: 14px; }
+.snippet-row { display: grid; grid-template-columns: 110px 1fr auto; gap: 6px 8px; }
+.snippet-row input { height: 28px; }
+.snippet-row textarea { grid-column: 1 / -1; min-height: 60px; padding: 8px; font: 12px/1.5 var(--font-mono); color: var(--fg); background: var(--bg); border: 1px solid var(--border-hi); border-radius: var(--r); resize: vertical; }
+.snippet-empty { color: var(--muted); font-size: 13px; }

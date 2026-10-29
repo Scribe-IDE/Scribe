@@ -27,6 +27,7 @@ import { reportCursor } from "./statusbar";
 import { closeTab } from "./tabs";
 import { displayValue, index, scanLabels } from "./texindex";
 import { focusChanged } from "./focus";
+import { snippetCompletions, snippetTab } from "./snippets";
 import { texAssist } from "./texassist";
 import { tikzChanged } from "./tikz";
 import { TIKZ_LIBRARIES, tikzCompletion } from "./tikzwrite";
@@ -311,7 +312,7 @@ export function languageFor(path: string): Extension {
 
 export function completionFor(path: string): Extension {
   if (/\.(tex|tikz|sty|cls|bib)$/.test(path)) {
-    return autocompletion({ override: [latexCompletion, zoteroCiteCompletion, tikzCompletion] });
+    return [autocompletion({ override: [latexCompletion, zoteroCiteCompletion, tikzCompletion, snippetCompletions] }), snippetTab];
   }
   if (isNote(path)) return autocompletion({ override: [notesCompletion] });
   // Python gets built-in completions from the language mode

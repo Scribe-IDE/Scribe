@@ -23,6 +23,8 @@ import { canShowInPdf, focusPdfFind, goToSelectionSource, hasPdf, hasPdfSelectio
 import { refreshEditors, setCompileOnSave, setCompileOnType, settings, toggleSettings, updateSettings, zoom } from "./settings";
 import { appearance, appearanceListeners, applyAppearance, isDark, updateAppearance } from "./appearance";
 import { focusOn, toggleFocus } from "./focus";
+import { editEquation } from "./equation";
+import { openSnippetEditor } from "./snippets";
 import { initAppearanceControls, openThemeEditor, renderAppearanceControls, useThemeOfKind } from "./themeeditor";
 import { showOutline } from "./outline";
 import { deleteEntry, newFile, newFolder, quickOpen, renameEntry, showSidebar, uploadFiles } from "./sidebar";
@@ -221,6 +223,8 @@ register(
   { id: "help.tour", group: "Help", title: "Take the Tour", enabled: hasProject, run: startTour },
   { id: "edit.table", group: "Edit", title: "Edit Table…", enabled: () => !!activeEditor()?.dom.dataset.path?.endsWith(".tex"), run: editTable },
   { id: "edit.tikz", group: "Edit", title: "Preview TikZ", keys: "Mod-Alt-k", enabled: () => PICTURE_FILE.test(activeEditor()?.dom.dataset.path ?? ""), run: () => previewTikz(activeEditor()) },
+  { id: "edit.equation", group: "Edit", title: "Edit Equation…", keys: "Mod-Alt-e", enabled: () => !!activeEditor()?.dom.dataset.path?.endsWith(".tex"), run: editEquation },
+  { id: "edit.snippets", group: "Edit", title: "Snippets…", run: openSnippetEditor },
   { id: "edit.tikzInsert", group: "Edit", title: "Insert TikZ Picture…", enabled: () => PICTURE_FILE.test(activeEditor()?.dom.dataset.path ?? ""), run: insertTikzPicture },
   { id: "file.sketch", group: "File", title: "Insert Sketch…", keys: "Mod-Alt-d", enabled: () => isNote(activeEditor()?.dom.dataset.path), run: newSketch },
   { id: "file.review", group: "File", title: "Review Cards", enabled: hasProject, run: () => reviewCards() },
@@ -308,7 +312,7 @@ const MENU_ICON = {
 
 createMenubar($("menubar"), [
   { title: "File", icon: MENU_ICON.file, entries: ["file.new", "file.newNotebook", "file.newFolder", "file.upload", "-", "file.newNote", "file.todaysNote", "file.quickNote", "file.sketch", "file.notePdf", "file.review", "file.anki", "-", "file.newProject", "file.open", "file.import", { title: "Open Recent", icon: ICONS.recent, submenu: recentEntries }, "-", "file.save", "file.rename", "file.trash", "-", "file.export", "file.reveal", "-", "file.closeTab", "file.close"] },
-  { title: "Edit", icon: MENU_ICON.edit, entries: ["edit.undo", "edit.redo", "-", "edit.cut", "edit.copy", "edit.paste", "edit.selectAll", "-", "edit.find", "edit.findInProject", "edit.comment", "-", "edit.cite", "edit.zotero", "edit.table", "edit.tikz", "edit.tikzInsert", "edit.copyLatex"] },
+  { title: "Edit", icon: MENU_ICON.edit, entries: ["edit.undo", "edit.redo", "-", "edit.cut", "edit.copy", "edit.paste", "edit.selectAll", "-", "edit.find", "edit.findInProject", "edit.comment", "-", "edit.cite", "edit.zotero", "edit.table", "edit.equation", "edit.tikz", "edit.tikzInsert", "edit.snippets", "edit.copyLatex"] },
   {
     title: "View",
     icon: MENU_ICON.view,
@@ -402,6 +406,8 @@ async function toggleDarkPdf() {
   rerenderPdfSoon();
   if (current?.toLowerCase().endsWith(".pdf")) openFile(current);
 }
+
+$("setting-snippets").addEventListener("click", openSnippetEditor);
 
 // the look is the computer's, not the project's: applied before any project opens
 appearanceListeners.push(refreshEditors);
