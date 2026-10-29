@@ -1,5 +1,7 @@
-// Per-project settings: theme, editor font size, hand-arranged file order.
+// Per-project settings: editor font size, hand-arranged file order, build and editor options.
+// The look (theme, fonts) is kept on this computer instead: appearance.ts.
 import { invoke } from "@tauri-apps/api/core";
+import { adoptProjectTheme, isDark } from "./appearance";
 import { $, root } from "./core";
 import { editorPrefs, LineNumberStyle, prefEffects, view } from "./editor";
 import { mathPrefs } from "./mathpreview";
@@ -10,7 +12,6 @@ import { refreshTerminalTheme } from "./terminal";
 
 // ---------- settings ----------
 export interface Settings {
-  theme: "dark" | "light";
   fontSize: number;
   /** Hand-arranged file order per folder ("" is the project root): file names, top to bottom. */
   order: Record<string, string[]>;
@@ -32,7 +33,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  theme: "dark", fontSize: 13, order: {}, compileOnSave: false, compileOnType: false, vim: false, lineNumbers: "absolute", cellLineNumbers: false, spellCheck: true, mathPreview: true, density: "comfortable",
+  fontSize: 13, order: {}, compileOnSave: false, compileOnType: false, vim: false, lineNumbers: "absolute", cellLineNumbers: false, spellCheck: true, mathPreview: true, density: "comfortable",
 };
 export const FONT_MIN = 10;
 export const FONT_MAX = 24;
@@ -48,12 +49,6 @@ export function resetSettings() {
   settings = { ...DEFAULT_SETTINGS };
 }
 
-export function setTheme(theme: Settings["theme"]) {
-  settings.theme = theme;
-  applySettings();
-  saveSettings();
-}
-
 export function zoom(delta: number | "reset") {
   const next = delta === "reset" ? DEFAULT_SETTINGS.fontSize : settings.fontSize + delta;
   settings.fontSize = Math.min(FONT_MAX, Math.max(FONT_MIN, next));
@@ -67,7 +62,7 @@ export async function loadSettings() {
     const json = await invoke<string>("read_settings", { root });
     const parsed = JSON.parse(json);
     settings = { ...DEFAULT_SETTINGS };
-    if (parsed.theme === "dark" || parsed.theme === "light") settings.theme = parsed.theme;
+    adoptProjectTheme(parsed.theme); // projects used to keep the theme
     if (typeof parsed.fontSize === "number") settings.fontSize = Math.min(FONT_MAX, Math.max(FONT_MIN, parsed.fontSize));
     if (parsed.order && typeof parsed.order === "object") settings.order = parsed.order;
     settings.compileOnSave = parsed.compileOnSave === true;
@@ -89,11 +84,9 @@ export async function saveSettings() {
 
 export function applySettings() {
   const rootEl = document.documentElement;
-  rootEl.setAttribute("data-theme", settings.theme);
   rootEl.setAttribute("data-density", settings.density);
   $<HTMLSelectElement>("setting-density").value = settings.density;
   rootEl.style.setProperty("--editor-fs", `${settings.fontSize}px`);
-  $<HTMLSelectElement>("setting-theme").value = settings.theme;
   $<HTMLSelectElement>("setting-fontsize").value = String(settings.fontSize);
   $<HTMLInputElement>("setting-compile-on-save").checked = settings.compileOnSave;
   $<HTMLInputElement>("setting-compile-on-type").checked = settings.compileOnType;
@@ -106,11 +99,16 @@ export function applySettings() {
   mathPrefs.on = settings.mathPreview;
 
   Object.assign(editorPrefs, {
-    dark: settings.theme === "dark",
     vim: settings.vim,
     numbers: settings.lineNumbers,
     cellNumbers: settings.cellLineNumbers,
   });
+  refreshEditors();
+}
+
+/** Bring every editor, the terminal and the side pane in line with the preferences and the look. */
+export function refreshEditors() {
+  editorPrefs.dark = isDark();
   refreshTerminalTheme();
   refreshSidePrefs();
   view.dispatch({ effects: prefEffects() });
@@ -147,10 +145,6 @@ $("setting-spell").addEventListener("change", (e) => {
 });
 $("setting-cell-numbers").addEventListener("change", (e) => {
   updateSettings({ cellLineNumbers: (e.target as HTMLInputElement).checked });
-});
-
-$("setting-theme").addEventListener("change", (e) => {
-  setTheme((e.target as HTMLSelectElement).value as Settings["theme"]);
 });
 
 $("setting-fontsize").addEventListener("change", (e) => {

@@ -24,33 +24,34 @@ const shellQuote = (s: string) => `'${s.replace(/'/g, `'\\''`)}'`;
 function palette() {
   const css = getComputedStyle(document.documentElement);
   const v = (name: string) => css.getPropertyValue(name).trim();
-  const light = document.documentElement.getAttribute("data-theme") === "light";
+  // the ANSI colours are the theme's syntax colours, so the terminal matches the editor
   return {
     background: v("--panel"),
     foreground: v("--fg"),
     cursor: v("--accent"),
     cursorAccent: v("--panel"),
-    selectionBackground: light ? "rgba(184, 134, 46, .28)" : "rgba(212, 165, 86, .3)",
-    // gruvbox, dark or light to match the app
-    black: light ? "#3c3836" : "#282828", red: light ? "#9d0006" : "#fb4934", green: light ? "#79740e" : "#b8bb26",
-    yellow: light ? "#b57614" : "#fabd2f", blue: light ? "#076678" : "#83a598", magenta: light ? "#8f3f71" : "#d3869b",
-    cyan: light ? "#427b58" : "#8ec07c", white: light ? "#7c6f64" : "#d5c4a1",
-    brightBlack: "#928374", brightRed: light ? "#cc241d" : "#fb4934", brightGreen: light ? "#98971a" : "#b8bb26",
-    brightYellow: light ? "#d79921" : "#fabd2f", brightBlue: light ? "#458588" : "#83a598",
-    brightMagenta: light ? "#b16286" : "#d3869b", brightCyan: light ? "#689d6a" : "#8ec07c",
-    brightWhite: light ? "#282828" : "#fbf1c7",
+    selectionBackground: v("--select"),
+    black: v("--raised"), red: v("--syn-kw"), green: v("--syn-str"), yellow: v("--syn-type"),
+    blue: v("--syn-math"), magenta: v("--syn-num"), cyan: v("--syn-meta"), white: v("--fg-dim"),
+    brightBlack: v("--faint"), brightRed: v("--err"), brightGreen: v("--ok"), brightYellow: v("--accent"),
+    brightBlue: v("--syn-cmd"), brightMagenta: v("--syn-num"), brightCyan: v("--syn-meta"), brightWhite: v("--fg"),
   };
 }
 
 // One step below the editor's size, so zooming the editor zooms the terminal with it.
 const fontSize = () => Math.max(10, (parseInt(getComputedStyle(document.documentElement).getPropertyValue("--editor-fs")) || 13) - 1);
 
+// The editor's font, chosen in Settings.
+const monoFamily = () => getComputedStyle(document.documentElement).getPropertyValue("--font-mono").trim() || "monospace";
+
 /** Call when the app theme or the editor font size changes. */
 export function refreshTerminalTheme() {
   if (!term) return;
   term.options.theme = palette();
-  if (term.options.fontSize !== fontSize()) {
+  const family = monoFamily();
+  if (term.options.fontSize !== fontSize() || term.options.fontFamily !== family) {
     term.options.fontSize = fontSize();
+    term.options.fontFamily = family;
     if (!termPanel.hidden) fit?.fit();
   }
 }
@@ -59,7 +60,7 @@ export function refreshTerminalTheme() {
 function ensureTerminal(): Terminal {
   if (term) return term;
   term = new Terminal({
-    fontFamily: 'ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace',
+    fontFamily: monoFamily(),
     fontSize: fontSize(),
     lineHeight: 1.3,
     cursorBlink: true,

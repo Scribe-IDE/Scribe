@@ -229,14 +229,15 @@ export function editorTheme(dark: boolean): Extension {
   return EditorView.theme({
     "&": { color: "var(--fg)", backgroundColor: "var(--bg)", fontSize: "var(--editor-fs)" },
     "&.cm-focused": { outline: "none" },
-    ".cm-scroller": { fontFamily: "var(--font-mono)", lineHeight: "1.65", padding: "8px 0" },
-    ".cm-content": { caretColor: "var(--accent)" },
+    ".cm-scroller": { fontFamily: "var(--font-mono)", lineHeight: "var(--editor-lh, 1.65)", padding: "8px 0" },
+    ".cm-content": { caretColor: "var(--accent)", fontVariantLigatures: "var(--mono-ligatures, normal)" },
     ".cm-cursor, .cm-dropCursor": { borderLeftColor: "var(--accent)", borderLeftWidth: "1.5px" },
     "&.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection": {
       backgroundColor: "var(--select)",
     },
     ".cm-gutters": { backgroundColor: "var(--bg)", color: "var(--faint)", border: "none", paddingRight: "8px" },
-    ".cm-lineNumbers .cm-gutterElement": { padding: "0 4px 0 16px", fontSize: "0.85em", lineHeight: "1.94" },
+    // smaller numbers on the same rows as the text: the line height divided by the size
+    ".cm-lineNumbers .cm-gutterElement": { padding: "0 4px 0 16px", fontSize: "0.85em", lineHeight: "calc(var(--editor-lh, 1.65) / 0.85)" },
     ".cm-activeLine": { backgroundColor: "var(--line-hl)" },
     ".cm-activeLineGutter": { backgroundColor: "transparent", color: "var(--fg-dim)" },
     "&.cm-focused .cm-matchingBracket": { backgroundColor: "var(--active)", outline: "1px solid var(--border-hi)" },

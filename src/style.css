@@ -2375,3 +2375,34 @@ body.dragging-file #files * { cursor: grabbing; }
 .tour-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 12px; }
 .tour-actions .btn { height: 26px; padding: 0 10px; font-size: 12.5px; }
 .tour-actions .btn:first-child { margin-right: auto; }
+
+/* appearance controls in Settings */
+.settings-inline { display: inline-flex; align-items: center; gap: 6px; }
+.settings-mini { height: 24px; padding: 0 8px; font-size: 12px; }
+#setting-accent { width: 30px; height: 22px; padding: 0; border: 1px solid var(--border-hi); border-radius: var(--r-sm); background: none; cursor: pointer; }
+#setting-accent::-webkit-color-swatch-wrapper { padding: 2px; }
+#setting-accent::-webkit-color-swatch { border: none; border-radius: 2px; }
+#setting-font-name { width: 140px; }
+
+/* the theme editor: the app behind it changes as the colours do */
+.theme-editor {
+  width: min(560px, calc(100vw - 48px)); max-height: calc(100vh - 80px); margin: auto; padding: 0;
+  display: flex; flex-direction: column; color: var(--fg); background: var(--raised);
+  border: 1px solid var(--border-hi); border-radius: 14px; animation: pop-in 180ms cubic-bezier(.16, 1, .3, 1);
+}
+.theme-editor:not([open]) { display: none; }
+.theme-editor::backdrop { background: rgb(0 0 0 / .25); }
+.theme-editor header { display: flex; gap: 8px; padding: 16px 18px 12px; border-bottom: 1px solid var(--border); }
+.theme-name { flex: 1; height: 30px; font: 500 15px var(--font); }
+.theme-groups { flex: 1; overflow: auto; padding: 6px 18px 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 24px; }
+.theme-groups section { display: flex; flex-direction: column; }
+.theme-groups h4 { margin: 12px 0 6px; font: 500 11px/1.4 var(--font); letter-spacing: .04em; text-transform: uppercase; color: var(--faint); }
+.theme-color { display: grid; grid-template-columns: 26px 1fr 78px; align-items: center; gap: 8px; height: 30px; font-size: 13px; color: var(--fg-dim); }
+.theme-color input[type="color"] { width: 26px; height: 22px; padding: 0; border: 1px solid var(--border-hi); border-radius: var(--r-sm); background: none; cursor: pointer; }
+.theme-color input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
+.theme-color input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
+.theme-hex { width: 78px; height: 24px; font: 12px var(--font-mono); text-transform: lowercase; }
+.theme-contrast { margin: 0; padding: 8px 18px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--border); }
+.theme-contrast.weak { color: var(--err); }
+.theme-editor footer { display: flex; gap: 8px; padding: 12px 18px 16px; border-top: 1px solid var(--border); }
+.theme-delete { color: var(--err); }

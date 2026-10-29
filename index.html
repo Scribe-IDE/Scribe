@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Scribe</title>
   <link rel="stylesheet" href="/src/style.css" />
+  <!-- light or dark before the first paint; appearance.ts applies the full theme moments later -->
+  <script>try { if (localStorage.getItem("scribe.themeBase") === "light") document.documentElement.dataset.theme = "light"; } catch {}</script>
 </head>
 <body>
   <section id="welcome">
@@ -219,7 +221,22 @@
     <h3 class="settings-group">Appearance</h3>
     <label class="settings-row">
       <span>Theme</span>
-      <select id="setting-theme"><option value="dark">Dark</option><option value="light">Light</option></select>
+      <select id="setting-theme"></select>
+    </label>
+    <div class="settings-row">
+      <span>Accent</span>
+      <span class="settings-inline">
+        <input id="setting-accent" type="color" aria-label="Accent colour" />
+        <button id="setting-accent-reset" class="btn settings-mini" title="Use the theme's own accent">Theme's</button>
+      </span>
+    </div>
+    <div class="settings-row">
+      <span>Your themes</span>
+      <button id="setting-theme-edit" class="btn settings-mini" title="Make a theme from the one in use, or change one you made">Edit Theme…</button>
+    </div>
+    <label class="settings-row">
+      <span>Interface size</span>
+      <select id="setting-ui-scale"><option value="0.9">90%</option><option value="1">100%</option><option value="1.1">110%</option><option value="1.2">120%</option></select>
     </label>
     <label class="settings-row">
       <span>Density</span>
@@ -227,8 +244,24 @@
     </label>
     <h3 class="settings-group">Editor</h3>
     <label class="settings-row">
+      <span>Font</span>
+      <select id="setting-font"></select>
+    </label>
+    <label class="settings-row" id="setting-font-name-row" hidden>
+      <span>Font name</span>
+      <input id="setting-font-name" type="text" placeholder="e.g. Menlo" spellcheck="false" autocomplete="off" />
+    </label>
+    <label class="settings-row">
       <span>Font size</span>
       <select id="setting-fontsize"></select>
+    </label>
+    <label class="settings-row">
+      <span>Line height</span>
+      <select id="setting-line-height"><option value="1.4">Tight</option><option value="1.65">Normal</option><option value="1.85">Relaxed</option><option value="2">Loose</option></select>
+    </label>
+    <label class="settings-row">
+      <span>Ligatures</span>
+      <input id="setting-ligatures" type="checkbox" role="switch" />
     </label>
     <label class="settings-row">
       <span>Line numbers</span>

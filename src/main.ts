@@ -20,7 +20,9 @@ import { sizes, togglePane } from "./layout";
 import { activeCell, cellRunners, isNotebook, restartKernel } from "./notebook";
 import { closeProject, listFiles, openFolder, openProject } from "./project";
 import { canShowInPdf, focusPdfFind, goToSelectionSource, hasPdf, hasPdfSelection, lastPdf, showInPdf, zoomPdf } from "./preview";
-import { setCompileOnSave, setCompileOnType, setTheme, settings, toggleSettings, updateSettings, zoom } from "./settings";
+import { refreshEditors, setCompileOnSave, setCompileOnType, settings, toggleSettings, updateSettings, zoom } from "./settings";
+import { appearance, appearanceListeners, applyAppearance, isDark, updateAppearance } from "./appearance";
+import { initAppearanceControls, openThemeEditor, renderAppearanceControls, useThemeOfKind } from "./themeeditor";
 import { showOutline } from "./outline";
 import { deleteEntry, newFile, newFolder, quickOpen, renameEntry, showSidebar, uploadFiles } from "./sidebar";
 import iconUrl from "../src-tauri/icons/icon.svg?url";
@@ -178,8 +180,10 @@ register(
   { id: "view.zoomIn", group: "View", title: "Zoom In", keys: "Mod-=", enabled: hasProject, run: () => zoom(1) },
   { id: "view.zoomOut", group: "View", title: "Zoom Out", keys: "Mod-Minus", enabled: hasProject, run: () => zoom(-1) },
   { id: "view.zoomReset", group: "View", title: "Reset Zoom", keys: "Mod-0", enabled: hasProject, run: () => zoom("reset") },
-  { id: "view.themeDark", group: "View", title: "Dark Theme", enabled: hasProject, checked: () => settings.theme === "dark", run: () => setTheme("dark") },
-  { id: "view.themeLight", group: "View", title: "Light Theme", enabled: hasProject, checked: () => settings.theme === "light", run: () => setTheme("light") },
+  { id: "view.themeDark", group: "View", title: "Dark Theme", checked: () => appearance.theme !== "system" && isDark(), run: () => useThemeOfKind("dark") },
+  { id: "view.themeLight", group: "View", title: "Light Theme", checked: () => appearance.theme !== "system" && !isDark(), run: () => useThemeOfKind("light") },
+  { id: "view.themeSystem", group: "View", title: "Match the System", checked: () => appearance.theme === "system", run: () => updateAppearance({ theme: "system" }).then(renderAppearanceControls) },
+  { id: "view.themeEdit", group: "View", title: "Edit Theme…", run: openThemeEditor },
 
   { id: "build.compile", group: "Build", title: "Compile", keys: "Mod-Enter", enabled: hasProject, run: compile },
   { id: "build.runNotebooks", group: "Build", title: "Run Notebooks", keys: "Mod-Shift-Enter", enabled: hasProject, run: runNotebook },
@@ -310,7 +314,7 @@ createMenubar($("menubar"), [
       "view.files", "edit.findInProject", "view.figures", "view.outline", "view.git", "view.references", "view.symbols", "view.notes", "view.history", "view.review", "-",
       "view.openSide", "view.closeSide", "-",
       "view.sidebar", "view.preview", "view.log", "view.terminal", "-",
-      { title: "Theme", icon: ICONS.theme, submenu: () => ["view.themeDark", "view.themeLight"] }, "-",
+      { title: "Theme", icon: ICONS.theme, submenu: () => ["view.themeDark", "view.themeLight", "view.themeSystem", "-", "view.themeEdit"] }, "-",
       "view.vim", "view.relativeNumbers", "view.spell", "view.math", "view.livePreview", "-",
       "view.zoomIn", "view.zoomOut", "view.zoomReset", "-",
       "view.pdfZoomIn", "view.pdfZoomOut", "view.pdfFit", "view.pdfFind",
@@ -389,6 +393,10 @@ try {
 
 renderProblemCount();
 loadProfile();
+// the look is the computer's, not the project's: applied before any project opens
+appearanceListeners.push(refreshEditors);
+initAppearanceControls();
+applyAppearance();
 renderRecent();
 renderShortcuts();
 renderSetup();

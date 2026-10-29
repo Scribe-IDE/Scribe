@@ -223,7 +223,7 @@ export const cellPrefEffects = () => [
 ];
 export const cellChrome = Prec.highest(EditorView.theme({
   "&": { backgroundColor: "transparent" },
-  ".cm-scroller": { padding: "0 0 12px", lineHeight: "1.6" },
+  ".cm-scroller": { padding: "0 0 12px", lineHeight: "calc(var(--editor-lh, 1.65) - 0.05)" },
   ".cm-content": { padding: "0" },
   ".cm-line": { padding: "0 14px" },
   ".cm-activeLine": { backgroundColor: "transparent" },

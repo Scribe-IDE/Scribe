@@ -104,7 +104,6 @@ export async function closeProject() {
   toggleSettings(false);
   // Settings are per project; the welcome screen always uses the default look.
   resetSettings();
-  document.documentElement.removeAttribute("data-theme");
   document.documentElement.removeAttribute("data-density");
   document.documentElement.style.removeProperty("--editor-fs");
   renderRecent();
