@@ -179,6 +179,7 @@ export const FILE_ICON: Record<string, string> = {
   text: svg(PAGE),
 };
 FILE_ICON.cls = FILE_ICON.sty;
+FILE_ICON.tikz = svg('<circle cx="4.5" cy="11.5" r="1.75"/><circle cx="11.5" cy="4.5" r="1.75"/><path d="M5.75 10.25l4.5-4.5"/>');
 FILE_ICON.csv = svg('<rect x="2" y="2.75" width="12" height="10.5" rx="1.5"/><path d="M2 6.25h12M2 9.75h12M6.5 2.75v10.5"/>');
 FILE_ICON.tsv = FILE_ICON.csv;
 FILE_ICON.image = svg('<rect x="2.25" y="2.75" width="11.5" height="10.5" rx="1.5"/><circle cx="5.75" cy="6.25" r="1.1"/><path d="M2.5 11.5l3.25-3 2.5 2.25 2-1.75 3.25 3"/>');

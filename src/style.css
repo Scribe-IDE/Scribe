@@ -876,7 +876,8 @@ body.resizing #layout > :not(.splitter) { pointer-events: none; }
 #files .item.nested { padding-left: 24px; }
 
 .file-icon { display: grid; flex-shrink: 0; color: var(--faint); }
-.file-icon.file-tex { color: var(--accent); }
+.file-icon.file-tex,
+.file-icon.file-tikz { color: var(--accent); }
 .file-icon.file-py { color: var(--syn-meta); }
 .file-icon.file-bib { color: var(--syn-num); }
 .file-icon.file-sty,

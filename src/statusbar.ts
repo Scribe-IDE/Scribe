@@ -10,7 +10,7 @@ import { problemCount } from "./problems";
 import { countWords, proseKind } from "./prose";
 
 const KIND: Record<string, string> = {
-  tex: "LaTeX", bib: "BibTeX", sty: "LaTeX package", cls: "LaTeX class", md: "Markdown", txt: "Plain text",
+  tex: "LaTeX", tikz: "TikZ", bib: "BibTeX", sty: "LaTeX package", cls: "LaTeX class", md: "Markdown", txt: "Plain text",
 };
 
 function fileKind(): string {

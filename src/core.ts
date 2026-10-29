@@ -85,7 +85,7 @@ export function baseName(path: string) {
 }
 
 // ---------- files ----------
-export const EDITABLE = /\.(tex|py|ipynb|bib|sty|cls|txt|md|pdf|csv|tsv)$/;
+export const EDITABLE = /\.(tex|tikz|py|ipynb|bib|sty|cls|txt|md|pdf|csv|tsv)$/;
 export const NOTEBOOK_SOURCE = /\.(py|ipynb)$/; // files that can hold figure cells
 export const VIEWABLE = /\.(pdf|png|jpe?g|gif|svg)$/i; // opened as a preview, never as text
 export const listed = (f: string) => EDITABLE.test(f) || VIEWABLE.test(f);
