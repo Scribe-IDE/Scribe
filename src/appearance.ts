@@ -17,11 +17,13 @@ export interface Appearance {
   lineHeight: number;
   /** The whole interface, larger or smaller. */
   uiScale: number;
+  /** PDFs shown light on dark, their pictures as they are. */
+  pdfDark: boolean;
 }
 
 export const DEFAULT_APPEARANCE: Appearance = {
   theme: "scribe-dark", light: "scribe-light", dark: "scribe-dark", accent: null, custom: [],
-  font: "system", ligatures: true, lineHeight: 1.65, uiScale: 1,
+  font: "system", ligatures: true, lineHeight: 1.65, uiScale: 1, pdfDark: false,
 };
 
 /** Editor fonts: the system's monospace, or one that ships with the app, loaded when first chosen. */
@@ -82,6 +84,7 @@ export async function applyAppearance() {
   root.style.setProperty("--mono-ligatures", appearance.ligatures ? "normal" : "none");
   root.style.setProperty("--editor-lh", String(appearance.lineHeight));
   root.style.zoom = appearance.uiScale === 1 ? "" : String(appearance.uiScale);
+  root.toggleAttribute("data-pdf-dark", appearance.pdfDark);
   for (const fn of appearanceListeners) fn();
 }
 

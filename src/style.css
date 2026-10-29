@@ -2406,3 +2406,31 @@ body.dragging-file #files * { cursor: grabbing; }
 .theme-contrast.weak { color: var(--err); }
 .theme-editor footer { display: flex; gap: 8px; padding: 12px 18px 16px; border-top: 1px solid var(--border); }
 .theme-delete { color: var(--err); }
+
+/* PDFs in the dark: the page inverted (colours keep their hue), its pictures copied back on top */
+:root[data-pdf-dark] .pdf-page > canvas:first-child,
+:root[data-pdf-dark] .reader-page > canvas:first-child { filter: invert(.88) hue-rotate(180deg); }
+:root[data-pdf-dark] .reader-page { background: #1e1e1e; }
+.pdf-pictures, #pdf canvas.pdf-pictures { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: none; pointer-events: none; }
+
+/* focus mode: the text alone, centred, the line being written in the middle */
+/* scrolling the line to the middle mustn't scroll the window itself, which hidden alone allows */
+:root[data-focus], :root[data-focus] body, :root[data-focus] #app { overflow: clip; }
+/* the hidden bars leave the grid, so the layout takes the second row */
+:root[data-focus] #app { grid-template-rows: 36px minmax(0, 1fr); }
+:root[data-focus] #toolbar, :root[data-focus] #statusbar, :root[data-focus] #tabs,
+:root[data-focus] #log-panel, :root[data-focus] #term-panel, :root[data-focus] #work-side, :root[data-focus] #split-handle { display: none !important; }
+:root[data-focus] #layout { grid-template-columns: minmax(0, 1fr) !important; }
+:root[data-focus] #layout > :not(#editor-pane) { display: none !important; }
+:root[data-focus] #editor .cm-gutters { display: none; }
+:root[data-focus] #editor .cm-content { max-width: 72ch; margin: 0 auto; padding: 0 24px; }
+:root[data-focus] #editor .cm-activeLine { background: none; }
+:root[data-focus] #editor .cm-scroller { padding: 30vh 0 45vh; }
+#focus-meter {
+  position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 30;
+  display: flex; flex-direction: column; align-items: center; gap: 5px; padding: 6px 12px;
+  font: 12px var(--font); color: var(--faint); background: none; border-radius: var(--r);
+  opacity: .45; transition: opacity 200ms ease;
+}
+#focus-meter:hover { opacity: 1; background: var(--panel); color: var(--muted); }
+.focus-bar { width: 140px; height: 2px; border-radius: 1px; background: linear-gradient(to right, var(--accent) var(--done), var(--border) var(--done)); }

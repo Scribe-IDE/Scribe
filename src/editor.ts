@@ -26,6 +26,7 @@ import { spellExtension } from "./spell";
 import { reportCursor } from "./statusbar";
 import { closeTab } from "./tabs";
 import { displayValue, index, scanLabels } from "./texindex";
+import { focusChanged } from "./focus";
 import { tikzChanged } from "./tikz";
 import { TIKZ_LIBRARIES, tikzCompletion } from "./tikzwrite";
 import { zoteroCiteCompletion } from "./zotero";
@@ -155,7 +156,15 @@ export const editorPrefs = {
   numbers: "absolute" as LineNumberStyle,
   /** Notebook cells show line numbers too, in the same style. */
   cellNumbers: false,
+  /** Focus mode: the line being written stays in the middle of the screen. */
+  typewriter: false,
 };
+
+// Typewriter scrolling: typing or moving the cursor scrolls the line back to the middle.
+const typewriter = EditorState.transactionExtender.of((tr) =>
+  editorPrefs.typewriter && (tr.isUserEvent("input") || tr.isUserEvent("delete") || (tr.isUserEvent("select") && !tr.isUserEvent("select.pointer")))
+    ? { effects: EditorView.scrollIntoView(tr.newSelection.main.head, { y: "center" }) }
+    : null);
 
 class NumberMarker extends GutterMarker {
   constructor(readonly text: string) { super(); }
@@ -201,6 +210,7 @@ const baseSetup: Extension = [
   drawSelection(),
   dropCursor(),
   EditorState.allowMultipleSelections.of(true),
+  typewriter,
   indentOnInput(),
   syntaxHighlighting(defaultHighlightStyle, { fallback: true }),
   bracketMatching(),
@@ -349,6 +359,7 @@ export function createEditorState(doc: string, path: string, hooks: EditorHooks 
         }
         reportCursor(u.view);
         if (u.docChanged || u.selectionSet) tikzChanged(u.view, u.docChanged);
+        if (u.docChanged) focusChanged();
       }),
     ],
   });

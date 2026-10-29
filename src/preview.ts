@@ -6,7 +6,9 @@ import * as pdfjs from "pdfjs-dist";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import workerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { save } from "@tauri-apps/plugin-dialog";
+import { appearance } from "./appearance";
 import { $, baseName, clamp, current, root, setStatus } from "./core";
+import { picturesLayer } from "./darkpdf";
 import { view } from "./editor";
 import { sizes, togglePane } from "./layout";
 import { revealLine } from "./project";
@@ -68,6 +70,11 @@ export async function renderPdf(rel: string) {
     sheet.dataset.w = String(base.width);
     sheet.dataset.h = String(base.height);
     sheet.appendChild(canvas);
+    // in the dark, the pictures go back on top of the inverted page as they are
+    if (appearance.pdfDark) {
+      const pictures = await picturesLayer(canvas, page, vp).catch(() => null);
+      if (pictures) sheet.appendChild(pictures);
+    }
 
     // Invisible, selectable text laid exactly over the picture of the page, so words in the
     // PDF can be highlighted, copied, and traced back to the source.

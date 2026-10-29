@@ -18,10 +18,11 @@ import { $, baseName, current, logEl, logPanel, mainFile, PAGE, root, setLogView
 import { view } from "./editor";
 import { sizes, togglePane } from "./layout";
 import { activeCell, cellRunners, isNotebook, restartKernel } from "./notebook";
-import { closeProject, listFiles, openFolder, openProject } from "./project";
-import { canShowInPdf, focusPdfFind, goToSelectionSource, hasPdf, hasPdfSelection, lastPdf, showInPdf, zoomPdf } from "./preview";
+import { closeProject, listFiles, openFile, openFolder, openProject } from "./project";
+import { canShowInPdf, focusPdfFind, goToSelectionSource, hasPdf, hasPdfSelection, lastPdf, rerenderPdfSoon, showInPdf, zoomPdf } from "./preview";
 import { refreshEditors, setCompileOnSave, setCompileOnType, settings, toggleSettings, updateSettings, zoom } from "./settings";
 import { appearance, appearanceListeners, applyAppearance, isDark, updateAppearance } from "./appearance";
+import { focusOn, toggleFocus } from "./focus";
 import { initAppearanceControls, openThemeEditor, renderAppearanceControls, useThemeOfKind } from "./themeeditor";
 import { showOutline } from "./outline";
 import { deleteEntry, newFile, newFolder, quickOpen, renameEntry, showSidebar, uploadFiles } from "./sidebar";
@@ -184,6 +185,8 @@ register(
   { id: "view.themeLight", group: "View", title: "Light Theme", checked: () => appearance.theme !== "system" && !isDark(), run: () => useThemeOfKind("light") },
   { id: "view.themeSystem", group: "View", title: "Match the System", checked: () => appearance.theme === "system", run: () => updateAppearance({ theme: "system" }).then(renderAppearanceControls) },
   { id: "view.themeEdit", group: "View", title: "Edit Theme…", run: openThemeEditor },
+  { id: "view.focus", group: "View", title: "Focus Mode", keys: "Mod-Alt-f", enabled: () => !!current && !$("editor").hidden, checked: focusOn, run: () => toggleFocus() },
+  { id: "view.pdfDark", group: "View", title: "Dark PDF", checked: () => appearance.pdfDark, run: toggleDarkPdf },
 
   { id: "build.compile", group: "Build", title: "Compile", keys: "Mod-Enter", enabled: hasProject, run: compile },
   { id: "build.runNotebooks", group: "Build", title: "Run Notebooks", keys: "Mod-Shift-Enter", enabled: hasProject, run: runNotebook },
@@ -313,8 +316,8 @@ createMenubar($("menubar"), [
       "view.palette", "view.quickOpen", "-",
       "view.files", "edit.findInProject", "view.figures", "view.outline", "view.git", "view.references", "view.symbols", "view.notes", "view.history", "view.review", "-",
       "view.openSide", "view.closeSide", "-",
-      "view.sidebar", "view.preview", "view.log", "view.terminal", "-",
-      { title: "Theme", icon: ICONS.theme, submenu: () => ["view.themeDark", "view.themeLight", "view.themeSystem", "-", "view.themeEdit"] }, "-",
+      "view.sidebar", "view.preview", "view.focus", "view.log", "view.terminal", "-",
+      { title: "Theme", icon: ICONS.theme, submenu: () => ["view.themeDark", "view.themeLight", "view.themeSystem", "-", "view.pdfDark", "-", "view.themeEdit"] }, "-",
       "view.vim", "view.relativeNumbers", "view.spell", "view.math", "view.livePreview", "-",
       "view.zoomIn", "view.zoomOut", "view.zoomReset", "-",
       "view.pdfZoomIn", "view.pdfZoomOut", "view.pdfFit", "view.pdfFind",
@@ -393,6 +396,13 @@ try {
 
 renderProblemCount();
 loadProfile();
+/** PDFs light on dark, or as printed: the pages are drawn again either way. */
+async function toggleDarkPdf() {
+  await updateAppearance({ pdfDark: !appearance.pdfDark });
+  rerenderPdfSoon();
+  if (current?.toLowerCase().endsWith(".pdf")) openFile(current);
+}
+
 // the look is the computer's, not the project's: applied before any project opens
 appearanceListeners.push(refreshEditors);
 initAppearanceControls();

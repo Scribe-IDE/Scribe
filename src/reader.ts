@@ -6,6 +6,8 @@ import * as pdfjs from "pdfjs-dist";
 import { baseName, root, setStatus } from "./core";
 import { openContextMenu } from "./menubar";
 import { editNote, ensureCitationNote } from "./notes";
+import { appearance } from "./appearance";
+import { picturesLayer } from "./darkpdf";
 
 export const isPaper = (rel: string) => /^papers\/.+\.pdf$/i.test(rel);
 
@@ -110,6 +112,10 @@ export async function openReader(rel: string, bytes: Uint8Array, box: HTMLElemen
     sheet.appendChild(layer);
     column.appendChild(sheet);
     await page.render({ canvasContext: canvas.getContext("2d")!, viewport: vp }).promise;
+    if (appearance.pdfDark) {
+      const pictures = await picturesLayer(canvas, page, vp).catch(() => null);
+      if (pictures) sheet.insertBefore(pictures, layer);
+    }
     await new pdfjs.TextLayer({ textContentSource: await page.getTextContent(), container: layer, viewport: page.getViewport({ scale }) }).render();
     if (stale()) return;
     drawMarks(box, marks);
