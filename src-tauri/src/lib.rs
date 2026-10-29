@@ -2703,8 +2703,9 @@ mod tests {
 
     #[test]
     fn compiles_a_diff_against_a_commit() {
-        if Command::new("latexdiff").arg("--version").output().is_err() || !(has("latexmk") || has("tectonic")) {
-            return; // no TeX Live here
+        let missing = |tool: &str| Command::new(tool).arg("--help").output().is_err();
+        if missing("latexdiff") || missing("latexpand") || !(has("latexmk") || has("tectonic")) {
+            return; // no TeX Live tools here
         }
         let dir = std::env::temp_dir().join(format!("scribe-diff-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
