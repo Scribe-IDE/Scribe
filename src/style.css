@@ -2434,3 +2434,26 @@ body.dragging-file #files * { cursor: grabbing; }
 }
 #focus-meter:hover { opacity: 1; background: var(--panel); color: var(--muted); }
 .focus-bar { width: 140px; height: 2px; border-radius: 1px; background: linear-gradient(to right, var(--accent) var(--done), var(--border) var(--done)); }
+
+/* hover cards: what a \ref, \cite, \nbval or \nbfig points at */
+.cm-tooltip-hover { border: 1px solid var(--border-hi); border-radius: var(--r-lg); box-shadow: 0 8px 24px rgb(0 0 0 / .28); }
+.hover-card { display: flex; flex-direction: column; gap: 6px; max-width: 420px; padding: 10px 12px; font: 13px/1.45 var(--font); color: var(--fg); }
+.hover-card canvas, .hover-card img { display: block; max-width: 100%; height: auto; border-radius: var(--r-sm); background: #fff; }
+.hover-picture { color: var(--faint); }
+.hover-math { overflow-x: auto; overflow-y: hidden; font-size: 14px; }
+.hover-math .katex-display { margin: 2px 0; }
+.hover-title { font-weight: 600; }
+.hover-text { color: var(--fg-dim); }
+.hover-caption { color: var(--muted); font-size: 12px; }
+.hover-value { font: 500 15px var(--font-mono); color: var(--accent); }
+.hover-where { color: var(--faint); font: 11px var(--font-mono); }
+.hover-missing { color: var(--muted); }
+
+/* writing checks: a quiet dotted underline, the fixes as buttons in the tooltip */
+.cm-lintRange-info { background-image: none; text-decoration: underline dotted var(--accent); text-decoration-thickness: 1.5px; text-underline-offset: 3px; }
+.cm-tooltip-lint { padding: 2px 0; }
+.cm-diagnostic { padding: 6px 12px; border-left: none; font: 13px/1.45 var(--font); }
+.cm-diagnostic-info { border-left: 3px solid var(--accent); }
+.cm-diagnosticSource { margin-top: 2px; font-size: 11px; color: var(--faint); opacity: 1; }
+.cm-tooltip .cm-diagnosticAction { margin: 6px 6px 0 0; padding: 2px 8px; font: 500 12px var(--font); color: var(--on-accent); background: var(--accent); border-radius: var(--r-sm); }
+.cm-tooltip .cm-diagnosticAction + .cm-diagnosticAction { color: var(--fg-dim); background: var(--raised); border: 1px solid var(--border-hi); }

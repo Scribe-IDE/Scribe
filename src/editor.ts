@@ -27,6 +27,7 @@ import { reportCursor } from "./statusbar";
 import { closeTab } from "./tabs";
 import { displayValue, index, scanLabels } from "./texindex";
 import { focusChanged } from "./focus";
+import { texAssist } from "./texassist";
 import { tikzChanged } from "./tikz";
 import { TIKZ_LIBRARIES, tikzCompletion } from "./tikzwrite";
 import { zoteroCiteCompletion } from "./zotero";
@@ -344,6 +345,7 @@ export function createEditorState(doc: string, path: string, hooks: EditorHooks 
       completionFor(path),
       spellExtension(path),
       mathPreview(path),
+      texAssist(path),
       notesExtension(path),
       EditorView.editorAttributes.of({ "data-path": path }), // lets helpers know what kind of file this is
       themeConf.of(editorTheme(editorPrefs.dark)),

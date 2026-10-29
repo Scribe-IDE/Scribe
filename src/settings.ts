@@ -9,6 +9,8 @@ import { cellPrefEffects, cellViews } from "./notebook";
 import { refreshSpelling, spellPrefs } from "./spell";
 import { refreshSidePrefs, sideView } from "./split";
 import { refreshTerminalTheme } from "./terminal";
+import { lintPrefs, saveLintPrefs } from "./texassist";
+import { forceLinting } from "@codemirror/lint";
 
 // ---------- settings ----------
 export interface Settings {
@@ -94,6 +96,7 @@ export function applySettings() {
   $<HTMLSelectElement>("setting-line-numbers").value = settings.lineNumbers;
   $<HTMLInputElement>("setting-cell-numbers").checked = settings.cellLineNumbers;
   $<HTMLInputElement>("setting-spell").checked = settings.spellCheck;
+  $<HTMLInputElement>("setting-lint").checked = lintPrefs.on;
   spellPrefs.on = settings.spellCheck;
   $<HTMLInputElement>("setting-math").checked = settings.mathPreview;
   mathPrefs.on = settings.mathPreview;
@@ -139,6 +142,13 @@ $("setting-density").addEventListener("change", (e) => {
 });
 $("setting-math").addEventListener("change", (e) => {
   updateSettings({ mathPreview: (e.target as HTMLInputElement).checked });
+});
+$("setting-lint").addEventListener("change", (e) => {
+  // turning the checks on brings back the ones turned off one by one, too
+  lintPrefs.on = (e.target as HTMLInputElement).checked;
+  if (lintPrefs.on) lintPrefs.off.clear();
+  saveLintPrefs();
+  for (const v of [view, sideView]) if (v) forceLinting(v);
 });
 $("setting-spell").addEventListener("change", (e) => {
   updateSettings({ spellCheck: (e.target as HTMLInputElement).checked });

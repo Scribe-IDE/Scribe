@@ -68,7 +68,7 @@ const failedSnippets = new Set<string>();
 let thumbQueue: Promise<void> = Promise.resolve();
 
 /** The picture compiled on its own (cached by its source in build/tikz/), as PDF bytes. */
-async function tikzPdf(picture: string, paper: string): Promise<Uint8Array | null> {
+export async function tikzPdf(picture: string, paper: string): Promise<Uint8Array | null> {
   for (const minimal of [false, true]) {
     const { source } = previewDocument(paper, picture, minimal);
     const name = snippetName(source);
