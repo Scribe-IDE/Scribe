@@ -47,6 +47,23 @@ jobs:
 
       - run: npm ci
 
+      # A wrong key fails deep inside the build; check it first and say what's wrong.
+      - name: Check the signing key
+        shell: bash
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::The TAURI_SIGNING_PRIVATE_KEY secret is missing or empty. Paste the whole contents of ~/.tauri/scribe.key into it."
+            exit 1
+          fi
+          echo check > key-check.txt
+          if ! out=$(npx tauri signer sign -k "$KEY" -p "" key-check.txt 2>&1); then
+            echo "::error::The signing key doesn't work: $(echo "$out" | tail -2 | tr '\n' ' '). The secret must be the contents of ~/.tauri/scribe.key (not the .pub file), with nothing added."
+            exit 1
+          fi
+          rm -f key-check.txt key-check.txt.sig
+
       - name: Notes from the changelog
         id: notes
         shell: bash

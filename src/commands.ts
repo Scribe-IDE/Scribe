@@ -1,7 +1,7 @@
 // Command registry: the menu bar, the command palette and the global shortcuts all read
 // from here, so a command's title, shortcut and enabled state are defined exactly once.
 
-export type CommandGroup = "File" | "Edit" | "View" | "Build" | "Help";
+export type CommandGroup = "File" | "Edit" | "Insert" | "View" | "Build" | "Review" | "Notes" | "Help";
 
 export interface Command {
   id: string;

@@ -23,7 +23,7 @@
 \begin{document}
 \maketitle
 
-Put the cursor inside any picture below and press \textsf{Cmd+Opt+K} (Edit $\to$ Preview TikZ).
+Put the cursor inside any picture below and press \textsf{Cmd+Opt+K} (Build $\to$ Preview TikZ).
 The picture is drawn beside the source and redrawn as you type; moving the cursor into
 another picture shows that one. On a blank line, the same command inserts a new figure to
 start from.
@@ -35,15 +35,15 @@ A pipeline drawn with the styles defined in the preamble. Try changing \texttt{a
 \begin{figure}[ht]
   \centering
   \begin{tikzpicture}[node distance=12mm]
-    \node[box] (nb) {Notebook};
-    \node[box, right=of nb] (fig) {Figures};
-    \node[box, right=of fig, fill=amber!25, yshift=3.25cm] (paper) {Paper};
+    \node[box, yshift=1cm] (nb) {Notebook};
+    \node[box, right=of nb, xshift=1.5cm, yshift=-1cm] (fig) {Figures};
+    \node[box, right=of fig, fill=amber!25, yshift=3.5cm, xshift=-2.75cm] (paper) {Paper};
     
     \draw[arrow] (nb) -- node[above, font=\scriptsize] {run} (fig);
     \draw[arrow] (fig) -- node[above, font=\scriptsize] {insert} (paper);
     \draw[arrow, dashed] (paper.south) -- ++(0,-8mm) -| node[pos=.25, below, font=\scriptsize] {edit} (nb.south);
     \draw (1,-0.75) -- (2,-0.75);
-    \draw (0.25,3.5) -- (2.25,-1.75);
+    \draw (1.75,0.5) -- (2.25,-1.75);
   \end{tikzpicture}
   \caption{From notebook to paper.}
   \label{fig:pipeline}
