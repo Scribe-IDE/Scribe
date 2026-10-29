@@ -2,7 +2,7 @@
 
 Each version's notes become its release notes on GitHub.
 
-## 0.1.0
+## 1.1.0
 
 The first release.
 
