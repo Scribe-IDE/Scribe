@@ -37,10 +37,13 @@ A pipeline drawn with the styles defined in the preamble. Try changing \texttt{a
   \begin{tikzpicture}[node distance=12mm]
     \node[box] (nb) {Notebook};
     \node[box, right=of nb] (fig) {Figures};
-    \node[box, right=of fig, fill=amber!25] (paper) {Paper};
+    \node[box, right=of fig, fill=amber!25, yshift=3.25cm] (paper) {Paper};
+    
     \draw[arrow] (nb) -- node[above, font=\scriptsize] {run} (fig);
     \draw[arrow] (fig) -- node[above, font=\scriptsize] {insert} (paper);
     \draw[arrow, dashed] (paper.south) -- ++(0,-8mm) -| node[pos=.25, below, font=\scriptsize] {edit} (nb.south);
+    \draw (1,-0.75) -- (2,-0.75);
+    \draw (0.25,3.5) -- (2.25,-1.75);
   \end{tikzpicture}
   \caption{From notebook to paper.}
   \label{fig:pipeline}
