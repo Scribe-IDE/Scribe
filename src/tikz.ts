@@ -12,6 +12,7 @@ import { closeSide, showInSide, sideFile } from "./split";
 import {
   appendStatement, formatCoordinate, fromPage, instrument, INSTRUMENT_MACROS, pictureAt, PICTURE_FILE, previewDocument,
   readMarks, scanPicture, shapeSource, toPage, unclosedParen, type Marks, type PictureScan, type Point, type ShapeTool,
+  canvasToPage, canvasToShift, nodeShift, pageToCanvas, shiftToCanvas, withShift,
 } from "./tikzsource";
 import { STARTERS, starterText } from "./tikzwrite";
 import type { CompileResult } from "./types";
@@ -45,8 +46,10 @@ let zoom = 1;
 /** The points that can be dragged in the picture shown: its coordinates as they are in the
  *  editor (`from` is where the picture starts) and where the last drawing put its scopes. */
 let shown: { from: number; scan: PictureScan; marks: Marks | null } | null = null;
-/** A coordinate being dragged: the preview draws `text` in its place before the editor has it. */
+/** A point or node being dragged: the preview draws `text` in place of `original` (at from–to
+ *  in the picture) before the editor has it. A point's value is its coordinate; a node's is its shift in cm. */
 let drag: {
+  kind: "coord" | "node";
   index: number;
   pictureFrom: number;
   from: number;
@@ -54,6 +57,8 @@ let drag: {
   original: string;
   value: [number, number];
   text: string;
+  /** A node's centre on the canvas when the drag began, before any shift was drawn. */
+  centre: Point | null;
   startX: number;
   startY: number;
   moved: boolean;
@@ -167,7 +172,22 @@ function place(el: HTMLElement, at: [number, number] | null) {
   }
 }
 
-/** The handles for the picture shown, with the one under the editor's cursor marked. */
+/** Where a node's handle goes: its centre, moved by the shift being dragged. */
+function nodeAt(marks: Marks, index: number): Point | null {
+  const n = shown!.scan.nodes[index];
+  if (drag?.kind !== "node" || drag.index !== index) {
+    const centre = marks.nodes.get(n.name);
+    return centre ? canvasToPage(marks, centre) : null;
+  }
+  const centre = drag.centre;
+  if (!centre) return null;
+  const before = nodeShift(drag.original);
+  const d = shiftToCanvas(marks, n.scope, [drag.value[0] - before[0], drag.value[1] - before[1]]);
+  return canvasToPage(marks, [centre[0] + d[0], centre[1] + d[1]]);
+}
+
+/** The handles for the picture shown, with the one under the editor's cursor marked: round for
+ *  points, square for nodes placed relative to others. */
 function renderHandles() {
   const layer = pane?.stage.querySelector<HTMLElement>(".tikz-handles");
   if (!layer) return;
@@ -175,24 +195,33 @@ function renderHandles() {
   if (!shown?.marks) return;
   const { marks, scan, from } = shown;
   const head = pane!.editor.state.selection.main.head;
-  scan.coords.forEach((c, index) => {
+  const handle = (kind: "coord" | "node", index: number, at: Point | null, title: string, range: [number, number]) => {
     const el = document.createElement("span");
-    el.className = "tikz-handle";
+    el.className = `tikz-handle${kind === "node" ? " node" : ""}`;
+    el.dataset.kind = kind;
     el.dataset.index = String(index);
-    const dragging = drag?.index === index;
-    const [x, y] = dragging ? drag!.value : [c.x, c.y];
-    place(el, toPage(marks, c.scope, x, y));
-    el.title = `${formatCoordinate(x, y)}. Drag to move it, Option for finer steps; click to find it in the source.`;
-    if (dragging) el.classList.add("dragging");
-    else if (head >= from + c.from && head <= from + c.to) el.classList.add("active");
+    place(el, at);
+    el.title = title;
+    if (drag?.kind === kind && drag.index === index) el.classList.add("dragging");
+    else if (head >= from + range[0] && head <= from + range[1]) el.classList.add("active");
     layer.append(el);
+  };
+  scan.coords.forEach((c, index) => {
+    const [x, y] = drag?.kind === "coord" && drag.index === index ? drag.value : [c.x, c.y];
+    handle("coord", index, toPage(marks, c.scope, x, y),
+      `${formatCoordinate(x, y)}. Drag to move it, Option for finer steps; click to find it in the source.`, [c.from, c.to]);
+  });
+  scan.nodes.forEach((n, index) => {
+    if (!marks.nodes.has(n.name)) return;
+    handle("node", index, nodeAt(marks, index),
+      `Node ${n.name}. Drag to shift it (xshift, yshift), Option for finer steps; click to find it in the source.`, [n.optionsFrom, n.optionsTo]);
   });
   if (drag) {
     const label = document.createElement("span");
     label.className = "tikz-coord";
-    label.textContent = drag.text;
+    label.textContent = drag.kind === "coord" ? drag.text : `shift ${formatCoordinate(drag.value[0], drag.value[1])} cm`;
     const c = scan.coords[drag.index];
-    if (c) place(label, toPage(marks, c.scope, drag.value[0], drag.value[1]));
+    place(label, drag.kind === "coord" ? (c ? toPage(marks, c.scope, drag.value[0], drag.value[1]) : null) : nodeAt(marks, drag.index));
     layer.append(label);
   }
   if (tool !== "select") renderSketch(layer, marks);
@@ -201,17 +230,26 @@ function renderHandles() {
 function startDrag(e: PointerEvent) {
   const el = (e.target as HTMLElement).closest<HTMLElement>(".tikz-handle");
   if (!el || !shown?.marks || e.button !== 0) return;
+  const kind = el.dataset.kind === "node" ? "node" : "coord";
   const index = Number(el.dataset.index);
-  const c = shown.scan.coords[index];
-  const doc = pane!.editor.state.doc;
-  const original = doc.sliceString(shown.from + c.from, shown.from + c.to);
+  let from: number, to: number, value: Point;
+  if (kind === "coord") {
+    const c = shown.scan.coords[index];
+    [from, to, value] = [c.from, c.to, [c.x, c.y]];
+  } else {
+    const n = shown.scan.nodes[index];
+    [from, to] = [n.optionsFrom, n.optionsTo];
+  }
+  const original = pane!.editor.state.doc.sliceString(shown.from + from, shown.from + to);
+  if (kind === "node") value = nodeShift(original);
   e.preventDefault();
   pane!.stage.setPointerCapture(e.pointerId);
   pane!.stage.classList.add("dragging");
   window.addEventListener("keydown", escapeDrag, true);
   drag = {
-    index, pictureFrom: shown.from, from: c.from, to: c.to, original,
-    value: [c.x, c.y], text: formatCoordinate(c.x, c.y), startX: e.clientX, startY: e.clientY, moved: false,
+    kind, index, pictureFrom: shown.from, from, to, original, value: value!, text: original,
+    centre: kind === "node" ? shown.marks.nodes.get(shown.scan.nodes[index].name) ?? null : null,
+    startX: e.clientX, startY: e.clientY, moved: false,
   };
 }
 
@@ -219,13 +257,29 @@ function moveDrag(e: PointerEvent) {
   if (!drag || !shown?.marks) return;
   if (!drag.moved && Math.hypot(e.clientX - drag.startX, e.clientY - drag.startY) < 3) return;
   drag.moved = true;
+  const marks = shown.marks;
   const rect = pane!.stage.querySelector(".tikz-sheet")!.getBoundingClientRect();
-  const c = shown.scan.coords[drag.index];
-  const at = fromPage(shown.marks, c.scope, (e.clientX - rect.left) / rect.width, (e.clientY - rect.top) / rect.height);
-  if (!at) return;
+  const page: Point = [(e.clientX - rect.left) / rect.width, (e.clientY - rect.top) / rect.height];
   const step = e.altKey ? SNAP_FINE : SNAP;
-  const value: [number, number] = [Math.round(at[0] / step) * step, Math.round(at[1] / step) * step];
-  const text = formatCoordinate(value[0], value[1]);
+  const snap = (v: number) => Math.round(v / step) * step;
+  let value: Point;
+  let text: string;
+  if (drag.kind === "coord") {
+    const at = fromPage(marks, shown.scan.coords[drag.index].scope, page[0], page[1]);
+    if (!at) return;
+    value = [snap(at[0]), snap(at[1])];
+    text = formatCoordinate(value[0], value[1]);
+  } else {
+    // the node's centre follows the pointer; its shift changes by as much as the pointer moved
+    const n = shown.scan.nodes[drag.index];
+    const centre = drag.centre;
+    const pointer = pageToCanvas(marks, page);
+    const d = centre ? canvasToShift(marks, n.scope, [pointer[0] - centre[0], pointer[1] - centre[1]]) : null;
+    if (!d) return;
+    const before = nodeShift(drag.original);
+    value = [snap(before[0] + d[0]), snap(before[1] + d[1])];
+    text = withShift(drag.original, value);
+  }
   if (text === drag.text) return;
   drag.value = value;
   drag.text = text;
@@ -314,11 +368,12 @@ function updateTools() {
   const usable = !!shown?.marks;
   for (const b of pane.tools.querySelectorAll<HTMLButtonElement>("button")) b.disabled = !usable && b.dataset.tool !== "select";
   if (!usable && tool !== "select") setTool("select");
-  const n = shown?.marks ? shown.scan.coords.length : 0;
-  pane.points.textContent = n === 1 ? "1 point" : `${n} points`;
+  const marks = shown?.marks;
+  const n = marks ? shown!.scan.coords.length + shown!.scan.nodes.filter((node) => marks.nodes.has(node.name)).length : 0;
+  pane.points.textContent = n === 1 ? "1 handle" : `${n} handles`;
   pane.points.title = n
-    ? "Points you can drag: hold the pointer over the picture."
-    : "Only points written as plain numbers, like (1,2), can be dragged. Named nodes, ++ steps and plots can't.";
+    ? "Round handles are points written as numbers, like (1,2); square ones are named nodes, which move by xshift and yshift."
+    : "Nothing here can be dragged: points made by ++ steps, loops (\\foreach) and plots have no handles.";
 }
 
 /** The point under the pointer in the picture's own coordinates: an existing point if one is

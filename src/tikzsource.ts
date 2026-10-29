@@ -76,8 +76,19 @@ export interface Coordinate {
   scope: number;
 }
 
+/** A named node placed some other way than `at (x,y)` (`right=of a`, or a node on a path):
+ *  dragging it writes `xshift`/`yshift` into its options. */
+export interface NodeRef {
+  name: string;
+  /** Its options `[…]`, or an empty range just after `\node` when it has none. */
+  optionsFrom: number;
+  optionsTo: number;
+  scope: number;
+}
+
 export interface PictureScan {
   coords: Coordinate[];
+  nodes: NodeRef[];
   /** Where each scope's body starts (index = scope number). */
   scopes: number[];
   /** Where `\end{tikzpicture}` is; -1 when the picture can't be instrumented (tikzcd). */
@@ -110,10 +121,12 @@ function skipOptions(text: string, i: number): number {
  *  polar, inside a pgfplots axis, or on a statement that shifts or scales itself are left out. */
 export function scanPicture(picture: string): PictureScan {
   const head = /^\\begin\{(tikzpicture|circuitikz)\}/.exec(picture);
-  if (!head) return { coords: [], scopes: [], end: -1 };
+  if (!head) return { coords: [], nodes: [], scopes: [], end: -1 };
   const scopes = [skipOptions(picture, head[0].length)];
   const coords: Coordinate[] = [];
+  const nodes: NodeRef[] = [];
   const stack = [0];
+  let loops = 0;
   let axis = 0;
   let moved = false;
   let end = -1;
@@ -123,6 +136,7 @@ export function scanPicture(picture: string): PictureScan {
       while (i + 1 < picture.length && picture[i + 1] !== "\n") i++;
     } else if (ch === ";") {
       moved = false;
+      loops = 0;
     } else if (ch === "\\") {
       const rest = picture.slice(i, i + 40);
       let m: RegExpExecArray | null;
@@ -148,6 +162,19 @@ export function scanPicture(picture: string): PictureScan {
       } else if ((m = PATH_COMMANDS.exec(rest))) {
         const after = skipOptions(picture, i + m[0].length);
         moved = MOVES.test(picture.slice(i + m[0].length, after));
+        // \node[…] (name) not followed by `at`: a node placed relative to others
+        const named = m[1] === "node" && !axis && !loops && stack[stack.length - 1] >= 0
+          ? /^\s*\(([^()\\\s,.]+)\)\s*(at\b)?/.exec(picture.slice(after, after + 80))
+          : null;
+        if (named && !named[2]) {
+          const hasOptions = after > i + m[0].length;
+          const open = hasOptions ? picture.indexOf("[", i + m[0].length) : i + m[0].length;
+          nodes.push({ name: named[1], optionsFrom: open, optionsTo: hasOptions ? after : open, scope: stack[stack.length - 1] });
+        }
+        i += m[0].length - 1;
+      } else if ((m = /^\\foreach\b/.exec(rest))) {
+        // a node in a loop is many nodes; leave those alone (counted until the statement ends)
+        loops++;
         i += m[0].length - 1;
       } else {
         i++; // an escaped character or the first letter of a command
@@ -161,16 +188,17 @@ export function scanPicture(picture: string): PictureScan {
       }
     }
   }
-  return { coords, scopes, end };
+  return { coords, nodes, scopes, end };
 }
 
 /** Macros the instrumented picture uses; they go in the preview's preamble. Each scope gets
  *  three named points (its origin and unit vectors), placed without growing the picture, and
  *  at the end the picture reports where they and its bounding box ended up, in pt. */
 export const INSTRUMENT_MACROS = String.raw`\makeatletter
-\newcommand\ScribeMark[1]{\begin{pgfinterruptboundingbox}\path (0,0) coordinate (scribeo#1) (1,0) coordinate (scribex#1) (0,1) coordinate (scribey#1);\end{pgfinterruptboundingbox}}
+\newcommand\ScribeMark[1]{\begin{pgfinterruptboundingbox}\path (0,0) coordinate (scribeo#1) (1,0) coordinate (scribex#1) (0,1) coordinate (scribey#1) (10pt,0pt) coordinate (scribeu#1) (0pt,10pt) coordinate (scribev#1);\end{pgfinterruptboundingbox}}
 \newcommand\ScribeAt[2]{\pgfpointanchor{#1}{#2}\typeout{SCRIBE #1 #2 \the\pgf@x\space\the\pgf@y}}
-\newcommand\ScribeReport[1]{{\pgftransformreset\ScribeAt{current bounding box}{south west}\ScribeAt{current bounding box}{north east}\foreach\scribek in {0,...,#1}{\ScribeAt{scribeo\scribek}{center}\ScribeAt{scribex\scribek}{center}\ScribeAt{scribey\scribek}{center}}}}
+\newcommand\ScribeNode[1]{\pgfutil@ifundefined{pgf@sh@ns@#1}{}{\ScribeAt{#1}{center}}}
+\newcommand\ScribeReport[2]{{\pgftransformreset\ScribeAt{current bounding box}{south west}\ScribeAt{current bounding box}{north east}\foreach\scribek in {0,...,#1}{\ScribeAt{scribeo\scribek}{center}\ScribeAt{scribex\scribek}{center}\ScribeAt{scribey\scribek}{center}\ScribeAt{scribeu\scribek}{center}\ScribeAt{scribev\scribek}{center}}#2}}
 \makeatother`;
 
 /** The picture with the marks put in. Nothing is put on a line of its own, so the line numbers
@@ -178,7 +206,8 @@ export const INSTRUMENT_MACROS = String.raw`\makeatletter
 export function instrument(picture: string, scan: PictureScan): string {
   if (scan.end < 0) return picture;
   const inserts: [number, string][] = scan.scopes.map((at, k) => [at, `\\ScribeMark{${k}}`]);
-  inserts.push([scan.end, `\\ScribeReport{${scan.scopes.length - 1}}`]);
+  const nodes = scan.nodes.map((n) => `\\ScribeNode{${n.name}}`).join("");
+  inserts.push([scan.end, `\\ScribeReport{${scan.scopes.length - 1}}{${nodes}}`]);
   let out = picture;
   for (const [at, text] of inserts.sort((a, b) => b[0] - a[0])) out = out.slice(0, at) + text + out.slice(at);
   return out;
@@ -190,8 +219,10 @@ export interface Marks {
   /** Bounding box corners, in pt. */
   sw: Point;
   ne: Point;
-  /** Per scope: origin, and the points (1,0) and (0,1). */
-  scopes: { o: Point; x: Point; y: Point }[];
+  /** Per scope: origin, the points (1,0) and (0,1), and (10pt,0pt) and (0pt,10pt). */
+  scopes: { o: Point; x: Point; y: Point; u: Point; v: Point }[];
+  /** Centres of named nodes, in pt. */
+  nodes: Map<string, Point>;
 }
 
 export function readMarks(log: string): Marks | null {
@@ -204,9 +235,15 @@ export function readMarks(log: string): Marks | null {
   if (!sw || !ne) return null;
   const scopes: Marks["scopes"] = [];
   for (let k = 0; at.has(`scribeo${k} center`); k++) {
-    scopes.push({ o: at.get(`scribeo${k} center`)!, x: at.get(`scribex${k} center`)!, y: at.get(`scribey${k} center`)! });
+    const get = (p: string) => at.get(`scribe${p}${k} center`)!;
+    scopes.push({ o: get("o"), x: get("x"), y: get("y"), u: get("u") ?? get("x"), v: get("v") ?? get("y") });
   }
-  return { sw, ne, scopes };
+  const nodes = new Map<string, Point>();
+  for (const [key, p] of at) {
+    const m = /^(.+) center$/.exec(key);
+    if (m && !/^scribe[oxyuv]\d+$/.test(m[1])) nodes.set(m[1], p);
+  }
+  return { sw, ne, scopes, nodes };
 }
 
 /** The standalone page's border around the picture, in pt (see CLASS). */
@@ -236,6 +273,68 @@ export function fromPage(marks: Marks, scope: number, fx: number, fy: number): P
   const det = a * d - b * c;
   if (Math.abs(det) < 1e-9) return null;
   return [(d * px - b * py) / det, (a * py - c * px) / det];
+}
+
+/** A point on the picture's canvas (pt) as fractions of the page, and back. */
+export function canvasToPage(marks: Marks, p: Point): Point {
+  const w = marks.ne[0] - marks.sw[0] + 2 * BORDER;
+  const h = marks.ne[1] - marks.sw[1] + 2 * BORDER;
+  return [(p[0] - marks.sw[0] + BORDER) / w, (marks.ne[1] + BORDER - p[1]) / h];
+}
+
+export function pageToCanvas(marks: Marks, f: Point): Point {
+  const w = marks.ne[0] - marks.sw[0] + 2 * BORDER;
+  const h = marks.ne[1] - marks.sw[1] + 2 * BORDER;
+  return [f[0] * w + marks.sw[0] - BORDER, marks.ne[1] + BORDER - f[1] * h];
+}
+
+const PT_PER_CM = 72.27 / 2.54;
+
+/** The xshift/yshift (cm) in a scope that moves a node by `d` on the canvas (pt). */
+export function canvasToShift(marks: Marks, scope: number, d: Point): Point | null {
+  const s = marks.scopes[scope];
+  if (!s) return null;
+  // (10pt,0) and (0,10pt) in the scope, as canvas vectors
+  const [a, c] = [(s.u[0] - s.o[0]) / 10, (s.u[1] - s.o[1]) / 10];
+  const [b, e] = [(s.v[0] - s.o[0]) / 10, (s.v[1] - s.o[1]) / 10];
+  const det = a * e - b * c;
+  if (Math.abs(det) < 1e-9) return null;
+  return [(e * d[0] - b * d[1]) / det / PT_PER_CM, (a * d[1] - c * d[0]) / det / PT_PER_CM];
+}
+
+/** The canvas offset (pt) that a shift (cm) in a scope makes. */
+export function shiftToCanvas(marks: Marks, scope: number, shift: Point): Point {
+  const s = marks.scopes[scope];
+  if (!s) return [0, 0];
+  const [x, y] = [shift[0] * PT_PER_CM / 10, shift[1] * PT_PER_CM / 10];
+  return [x * (s.u[0] - s.o[0]) + y * (s.v[0] - s.o[0]), x * (s.u[1] - s.o[1]) + y * (s.v[1] - s.o[1])];
+}
+
+const UNIT_CM: Record<string, number> = { cm: 1, mm: 0.1, pt: 1 / PT_PER_CM, bp: 2.54 / 72, in: 2.54, "": 1 / PT_PER_CM };
+const SHIFT_KEY = (key: string) => new RegExp(`(^|,)(\\s*)${key}\\s*=\\s*\\{?\\s*(-?(?:\\d+\\.?\\d*|\\.\\d+))\\s*(cm|mm|pt|bp|in)?\\s*\\}?\\s*(?=,|$)`);
+
+/** A node's xshift and yshift in cm, from its options text (`[…]` or empty). */
+export function nodeShift(options: string): Point {
+  const inside = options.replace(/^\[|\]$/g, "");
+  const read = (key: string) => {
+    const m = SHIFT_KEY(key).exec(inside);
+    return m ? Number(m[3]) * UNIT_CM[m[4] ?? ""] : 0;
+  };
+  return [read("xshift"), read("yshift")];
+}
+
+/** The options with xshift and yshift set to `shift` (cm); zero shifts are left out. */
+export function withShift(options: string, shift: Point): string {
+  let inside = options.replace(/^\[|\]$/g, "");
+  const cm = (v: number) => `${Math.round(v * 100) / 100}cm`;
+  for (const [key, value] of [["xshift", shift[0]], ["yshift", shift[1]]] as const) {
+    const re = SHIFT_KEY(key);
+    const zero = Math.abs(value) < 0.005;
+    if (re.test(inside)) inside = inside.replace(re, zero ? "" : `$1$2${key}=${cm(value)}`);
+    else if (!zero) inside = inside.trim() ? `${inside.replace(/\s+$/, "")}, ${key}=${cm(value)}` : `${key}=${cm(value)}`;
+  }
+  inside = inside.replace(/^\s*,\s*/, "").replace(/,\s*,/g, ",");
+  return inside.trim() ? `[${inside}]` : "";
 }
 
 /** A coordinate as written: `(1.25,-2)`, never `1.2500` or `-0`. */
