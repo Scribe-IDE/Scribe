@@ -25,6 +25,7 @@ import { appearance, appearanceListeners, applyAppearance, isDark, updateAppeara
 import { focusOn, toggleFocus } from "./focus";
 import { editEquation } from "./equation";
 import { compareWithVersion, quoteChange, responseLetter } from "./revisions";
+import { checkForUpdates, checkForUpdatesLater } from "./updates";
 import { openSnippetEditor } from "./snippets";
 import { initAppearanceControls, openThemeEditor, renderAppearanceControls, useThemeOfKind } from "./themeeditor";
 import { showOutline } from "./outline";
@@ -224,6 +225,7 @@ register(
   },
 
   { id: "help.shortcuts", group: "Help", title: "Keyboard Shortcuts", run: commandPalette },
+  { id: "help.updates", group: "Help", title: "Check for Updates…", run: () => checkForUpdates() },
   { id: "help.tour", group: "Help", title: "Take the Tour", enabled: hasProject, run: startTour },
   { id: "edit.table", group: "Edit", title: "Edit Table…", enabled: () => !!activeEditor()?.dom.dataset.path?.endsWith(".tex"), run: editTable },
   { id: "edit.tikz", group: "Edit", title: "Preview TikZ", keys: "Mod-Alt-k", enabled: () => PICTURE_FILE.test(activeEditor()?.dom.dataset.path ?? ""), run: () => previewTikz(activeEditor()) },
@@ -332,7 +334,7 @@ createMenubar($("menubar"), [
     ],
   },
   { title: "Build", icon: MENU_ICON.build, entries: ["build.compile", "build.compileOnSave", "build.compileOnType", "build.showInPdf", "build.showInSource", "build.check", "-", "build.compare", "build.quoteChange", "-", "build.runNotebooks", "build.runCell", "build.restartKernel", "-", "build.runFile", "build.stop", "view.terminal", "-", "view.log", "build.openPdf", "-", "build.installLatex"] },
-  { title: "Help", icon: MENU_ICON.help, entries: ["help.shortcuts", "help.tour", "help.about"] },
+  { title: "Help", icon: MENU_ICON.help, entries: ["help.shortcuts", "help.tour", "-", "help.updates", "help.about"] },
 ]);
 
 // ---------- wire up ----------
@@ -417,6 +419,7 @@ $("setting-snippets").addEventListener("click", openSnippetEditor);
 appearanceListeners.push(refreshEditors);
 initAppearanceControls();
 applyAppearance();
+checkForUpdatesLater();
 renderRecent();
 renderShortcuts();
 renderSetup();

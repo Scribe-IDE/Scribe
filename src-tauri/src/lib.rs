@@ -2622,6 +2622,9 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        // updates from GitHub releases, checked against the public key in tauri.conf.json
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .invoke_handler(tauri::generate_handler![
             list_files, list_dirs, create_dir, rename_path, delete_path, import_files,
             read_file, write_file, read_binary, compile, compile_snippet, pdf_to_svg, compile_diff, git_log,

@@ -6,6 +6,8 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/GeorgeKiritsis/Scribe/actions/workflows/check.yml"><img src="https://img.shields.io/github/actions/workflow/status/GeorgeKiritsis/Scribe/check.yml?branch=main&style=flat-square&labelColor=1a1917&label=checks" alt="Checks"></a>
+  <a href="https://github.com/GeorgeKiritsis/Scribe/releases/latest"><img src="https://img.shields.io/github/v/release/GeorgeKiritsis/Scribe?style=flat-square&color=d4a556&labelColor=1a1917&label=release" alt="Latest release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-d4a556?style=flat-square&labelColor=1a1917" alt="MIT license"></a>
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-d4a556?style=flat-square&labelColor=1a1917" alt="macOS, Windows, Linux">
   <img src="https://img.shields.io/badge/Tauri-2-d4a556?style=flat-square&labelColor=1a1917&logo=tauri&logoColor=white" alt="Tauri 2">
@@ -19,6 +21,8 @@
   <a href="#what-it-does"><b>Features</b></a>
   &nbsp;&middot;&nbsp;
   <a href="#a-notebook-in-the-paper"><b>Notebooks</b></a>
+  &nbsp;&middot;&nbsp;
+  <a href="#download"><b>Download</b></a>
   &nbsp;&middot;&nbsp;
   <a href="#building-from-source"><b>Build</b></a>
   &nbsp;&middot;&nbsp;
@@ -42,10 +46,13 @@ There is no account and nothing is uploaded.
 ## What it does
 
 **Writing.** A CodeMirror editor that knows LaTeX: completion for commands, labels, citations,
-figures and notebook values; a preview of the formula under the cursor; a symbol palette; tables
-edited as a grid. The paper compiles as you type if you want it to, and errors are explained in
-plain words and underlined in the source. Click in the PDF to find the line, and the other way
-round (SyncTeX). Spell check uses the system dictionary on macOS.
+figures and notebook values; snippets (`fig`, then Tab); a preview of the formula under the
+cursor; an equation editor where maths is typed as it is written; tables edited as a grid. Hover
+over `\ref` to see the equation or figure it points at, over `\cite` for the paper. Small slips
+(a breakable space before `\ref`, "the the", straight quotes, `$$`) are underlined with a fix.
+The paper compiles as you type if you want it to, and errors are explained in plain words.
+Click in the PDF to find the line, and the other way round (SyncTeX). Spell check uses the
+system dictionary on macOS.
 
 **Notebooks and figures.** Python files with `# %%` cells and Jupyter `.ipynb` notebooks run in
 a Python kernel that Scribe keeps running. A figure cell saves `figures/<id>.pdf`, which the paper includes with
@@ -63,9 +70,17 @@ style bar; every change is written back into the TikZ. Pictures export to PDF, S
 refers to, stale notebooks, leftover TODOs, and what arXiv would object to. Export bundles the
 sources into a zip ready to upload.
 
+**Revisions.** Compare the paper with any earlier commit or saved version: latexdiff marks what
+changed, in the PDF. A response letter to the reviewers starts from a template, and text
+selected in the marked-up PDF is quoted into it with its page.
+
 **Notes and reading.** Markdown notes with maths, links between notes and citations; PDFs in
 `papers/` open in a reader whose highlights land in the paper's note; `Q:` and `A:` lines become
 revision cards.
+
+**Looks.** Eleven themes, or your own made in a theme editor; any accent colour; editor fonts
+with or without ligatures; PDFs shown light on dark with their figures in colour; a focus mode
+with today's word count.
 
 **Projects.** Templates for a plain article, IEEE and ACM conference papers, a thesis, slides and
 lecture notes; import from an Overleaf zip or a git URL; a git panel; earlier versions of every file kept on save; a terminal.
@@ -98,10 +113,18 @@ Compiling runs the notebook if it changed, writes `figures/fig-loss.pdf` and the
 typesets the paper. The example project in [`example/`](example) is a complete paper built this
 way.
 
+## Download
+
+Installers for macOS, Windows and Linux are attached to each
+[release](https://github.com/GeorgeKiritsis/Scribe/releases/latest). Scribe updates itself from
+there: when a new version is out, it offers to install it.
+
+The macOS app isn't notarized by Apple yet, so the first time, open it with right-click > Open.
+
 ## Building from source
 
-There are no release builds yet. Scribe is a [Tauri 2](https://tauri.app) app: a TypeScript
-front end and a Rust back end. On every system you need:
+Scribe is a [Tauri 2](https://tauri.app) app: a TypeScript front end and a Rust back end. On
+every system you need:
 
 - [Node.js](https://nodejs.org) 20 or later
 - [Rust](https://rustup.rs) (stable)
@@ -192,6 +215,10 @@ so a crash can't leave half a file.
 cd src-tauri && cargo test     # back end tests; compiles the example paper
 npx tsc --noEmit               # type-check the front end
 ```
+
+Every push runs both on GitHub Actions. A release is a tag: `node scripts/version.mjs 0.2.0`
+sets the version everywhere, the notes go in [`CHANGELOG.md`](CHANGELOG.md), and pushing the tag
+`v0.2.0` builds and drafts the release.
 
 ## License
 

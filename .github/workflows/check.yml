@@ -1,0 +1,40 @@
+name: Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # Tauri's system libraries, and TeX Live and Python for the tests that compile the example paper
+      - name: System dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev libxdo-dev libssl-dev \
+            texlive-latex-base texlive-latex-recommended texlive-latex-extra texlive-science texlive-fonts-recommended \
+            latexmk latexdiff python3-matplotlib python3-numpy
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - run: npm ci
+      - name: Type-check the front end
+        run: npx tsc --noEmit
+      - name: Build the front end
+        run: npx vite build
+      - name: Back end tests
+        working-directory: src-tauri
+        run: cargo test

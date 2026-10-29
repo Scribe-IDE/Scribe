@@ -1,0 +1,72 @@
+name: Release
+
+# Pushing a tag like v0.2.0 builds the installers on each system and drafts a GitHub release with
+# them, the update signatures and latest.json (which the app's updater reads once the release is
+# published). The notes come from that version's section of CHANGELOG.md.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            args: --target universal-apple-darwin
+          - platform: ubuntu-22.04
+            args: ""
+          - platform: windows-latest
+            args: ""
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev libssl-dev
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - run: npm ci
+
+      - name: Notes from the changelog
+        id: notes
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          {
+            echo "body<<NOTES"
+            awk -v v="$version" '$0 ~ "^## "v"([ (]|$)" {on=1; next} /^## / {on=0} on' CHANGELOG.md
+            echo "NOTES"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: Scribe ${{ github.ref_name }}
+          releaseBody: ${{ steps.notes.outputs.body }}
+          releaseDraft: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          args: ${{ matrix.args }} --config src-tauri/tauri.release.conf.json
