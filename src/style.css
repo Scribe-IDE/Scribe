@@ -2484,3 +2484,9 @@ body.dragging-file #files * { cursor: grabbing; }
 .snippet-row input { height: 28px; }
 .snippet-row textarea { grid-column: 1 / -1; min-height: 60px; padding: 8px; font: 12px/1.5 var(--font-mono); color: var(--fg); background: var(--bg); border: 1px solid var(--border-hi); border-radius: var(--r); resize: vertical; }
 .snippet-empty { color: var(--muted); font-size: 13px; }
+
+/* comparing with an earlier version: what the PDF shows, and the way back */
+#pdf-diff { display: flex; align-items: center; gap: 10px; padding: 7px 10px 7px 14px; font-size: 12px; color: var(--fg-dim); background: var(--accent-dim); border-bottom: 1px solid var(--border); flex-shrink: 0; }
+#pdf-diff[hidden] { display: none; }
+#pdf-diff-text { flex: 1; }
+#pdf-diff .btn { height: 24px; padding: 0 8px; font-size: 12px; }

@@ -48,6 +48,8 @@ export function resetPdf() {
 export async function renderPdf(rel: string) {
   const job = ++pdfJob;
   lastPdf = rel;
+  // the banner of a comparison goes as soon as anything else is shown
+  if (!rel.startsWith("build/diff/")) $("pdf-diff").hidden = true;
   const bytes = await invoke<ArrayBuffer>("read_binary", { root, rel });
   const doc = await pdfjs.getDocument({ data: new Uint8Array(bytes) }).promise;
   const frag = document.createDocumentFragment();
@@ -277,6 +279,13 @@ function selectionInPdf(): Range | null {
 }
 
 export const hasPdfSelection = () => !!selectionInPdf();
+/** The text selected in the PDF, with the page it's on. */
+export function pdfSelection(): { text: string; page: number } | null {
+  const range = selectionInPdf();
+  if (!range) return null;
+  const page = Number((range.startContainer.parentElement?.closest(".pdf-page") as HTMLElement | null)?.dataset.page ?? 0);
+  return { text: range.toString().replace(/\s+/g, " ").trim(), page };
+}
 
 // The button follows the highlighted text while scrolling.
 function placeGoto() {

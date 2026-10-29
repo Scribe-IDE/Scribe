@@ -24,6 +24,7 @@ import { refreshEditors, setCompileOnSave, setCompileOnType, settings, toggleSet
 import { appearance, appearanceListeners, applyAppearance, isDark, updateAppearance } from "./appearance";
 import { focusOn, toggleFocus } from "./focus";
 import { editEquation } from "./equation";
+import { compareWithVersion, quoteChange, responseLetter } from "./revisions";
 import { openSnippetEditor } from "./snippets";
 import { initAppearanceControls, openThemeEditor, renderAppearanceControls, useThemeOfKind } from "./themeeditor";
 import { showOutline } from "./outline";
@@ -124,6 +125,9 @@ register(
     run: () => (current ? closeTab(current) : openTabs.length ? closeTab(openTabs[0]) : getCurrentWindow().close()),
   },
   { id: "file.export", group: "File", title: "Export for Submission…", run: exportForSubmission, enabled: hasProject },
+  { id: "file.response", group: "File", title: "Response to Reviewers", enabled: hasProject, run: responseLetter },
+  { id: "build.compare", group: "Build", title: "Compare with Earlier Version…", enabled: () => hasProject() && !!mainFile, run: compareWithVersion },
+  { id: "build.quoteChange", group: "Build", title: "Quote Selection for the Response", enabled: hasPdfSelection, run: quoteChange },
   { id: "file.close", group: "File", title: "Close Project", run: closeProject, enabled: hasProject },
 
   { id: "edit.undo", group: "Edit", title: "Undo", keys: "Mod-z", passive: true, enabled: canEdit, run: () => editAction(undo, "undo") },
@@ -311,7 +315,7 @@ const MENU_ICON = {
 };
 
 createMenubar($("menubar"), [
-  { title: "File", icon: MENU_ICON.file, entries: ["file.new", "file.newNotebook", "file.newFolder", "file.upload", "-", "file.newNote", "file.todaysNote", "file.quickNote", "file.sketch", "file.notePdf", "file.review", "file.anki", "-", "file.newProject", "file.open", "file.import", { title: "Open Recent", icon: ICONS.recent, submenu: recentEntries }, "-", "file.save", "file.rename", "file.trash", "-", "file.export", "file.reveal", "-", "file.closeTab", "file.close"] },
+  { title: "File", icon: MENU_ICON.file, entries: ["file.new", "file.newNotebook", "file.newFolder", "file.upload", "-", "file.newNote", "file.todaysNote", "file.quickNote", "file.sketch", "file.notePdf", "file.review", "file.anki", "-", "file.newProject", "file.open", "file.import", { title: "Open Recent", icon: ICONS.recent, submenu: recentEntries }, "-", "file.save", "file.rename", "file.trash", "-", "file.export", "file.response", "file.reveal", "-", "file.closeTab", "file.close"] },
   { title: "Edit", icon: MENU_ICON.edit, entries: ["edit.undo", "edit.redo", "-", "edit.cut", "edit.copy", "edit.paste", "edit.selectAll", "-", "edit.find", "edit.findInProject", "edit.comment", "-", "edit.cite", "edit.zotero", "edit.table", "edit.equation", "edit.tikz", "edit.tikzInsert", "edit.snippets", "edit.copyLatex"] },
   {
     title: "View",
@@ -327,7 +331,7 @@ createMenubar($("menubar"), [
       "view.pdfZoomIn", "view.pdfZoomOut", "view.pdfFit", "view.pdfFind",
     ],
   },
-  { title: "Build", icon: MENU_ICON.build, entries: ["build.compile", "build.compileOnSave", "build.compileOnType", "build.showInPdf", "build.showInSource", "build.check", "-", "build.runNotebooks", "build.runCell", "build.restartKernel", "-", "build.runFile", "build.stop", "view.terminal", "-", "view.log", "build.openPdf", "-", "build.installLatex"] },
+  { title: "Build", icon: MENU_ICON.build, entries: ["build.compile", "build.compileOnSave", "build.compileOnType", "build.showInPdf", "build.showInSource", "build.check", "-", "build.compare", "build.quoteChange", "-", "build.runNotebooks", "build.runCell", "build.restartKernel", "-", "build.runFile", "build.stop", "view.terminal", "-", "view.log", "build.openPdf", "-", "build.installLatex"] },
   { title: "Help", icon: MENU_ICON.help, entries: ["help.shortcuts", "help.tour", "help.about"] },
 ]);
 

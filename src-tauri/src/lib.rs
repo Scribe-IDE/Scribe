@@ -1226,6 +1226,102 @@ struct GitOverview {
     log: Vec<GitCommit>,
 }
 
+/// The project's commits, newest first, for picking one to compare the paper with.
+#[tauri::command]
+async fn git_log(root: String, limit: u32) -> Result<Vec<GitCommit>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let root_dir = Path::new(&root).canonicalize().map_err(|e| e.to_string())?;
+        let n = limit.clamp(1, 200).to_string();
+        Ok(git_text(&root_dir, &["log", "-n", &n, "--pretty=format:%h%x1f%s%x1f%cr", "--", "."])
+            .unwrap_or_default()
+            .lines()
+            .filter_map(|line| {
+                let mut parts = line.split('\x1f');
+                Some(GitCommit { hash: parts.next()?.into(), subject: parts.next()?.into(), when: parts.next()?.into() })
+            })
+            .collect())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// What to compare the paper with: a git commit, or a saved version of the main file.
+#[derive(Deserialize)]
+struct DiffBase {
+    git: Option<String>,
+    history: Option<u64>,
+}
+
+const DIFF_DIR: &str = "build/diff";
+
+/// One of TeX Live's Perl tools, its output or a message that names what's missing.
+fn tex_tool(tool: &str, args: &[&str], dir: &Path) -> Result<String, String> {
+    let out = Command::new(tool).args(args).current_dir(dir).output().map_err(|_| {
+        format!("{tool} isn't installed. It comes with TeX Live; with Tectonic alone, install it with your TeX distribution or `tlmgr install {tool}`.")
+    })?;
+    if !out.status.success() {
+        return Err(format!("{tool} failed: {}", String::from_utf8_lossy(&out.stderr).trim()));
+    }
+    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
+/// The paper as it is, marked up against an earlier version (latexdiff), and compiled.
+/// Both sides are flattened first (latexpand), so changes in \input files show too.
+fn compile_diff_blocking(root: &str, main: &str, base: DiffBase) -> Result<CompileResult, String> {
+    let root_dir = Path::new(root).canonicalize().map_err(|e| e.to_string())?;
+    resolve(root, main)?;
+    let dir = root_dir.join(DIFF_DIR);
+    let old = dir.join("old");
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&old).map_err(|e| e.to_string())?;
+    let tex: Vec<String> = list_files(root.to_string())?.into_iter().filter(|f| f.ends_with(".tex") && !f.starts_with("build/")).collect();
+    let write = |rel: &str, text: &[u8]| -> Result<(), String> {
+        let path = old.join(rel);
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        std::fs::write(path, text).map_err(|e| e.to_string())
+    };
+    if let Some(rev) = base.git.as_deref() {
+        if rev.starts_with('-') || rev.contains("..") {
+            return Err(format!("not a commit: {rev}"));
+        }
+        for rel in &tex {
+            let out = git(&root_dir, &["show", &format!("{rev}:./{rel}")])?;
+            if out.status.success() {
+                write(rel, &out.stdout)?;
+            }
+        }
+        if !old.join(main).is_file() {
+            return Err(format!("{main} isn't in commit {rev}."));
+        }
+    } else if let Some(id) = base.history {
+        // the other files as they are now, the main file as it was
+        for rel in &tex {
+            write(rel, &std::fs::read(root_dir.join(rel)).map_err(|e| e.to_string())?)?;
+        }
+        let saved = history_dir(&root_dir, main).join(format!("{id}.txt"));
+        write(main, &std::fs::read(&saved).map_err(|_| "That saved version is gone.".to_string())?)?;
+    } else {
+        return Err("Nothing to compare with.".into());
+    }
+    let old_flat = tex_tool("latexpand", &[main], &old)?;
+    let new_flat = tex_tool("latexpand", &[main], &root_dir)?;
+    std::fs::write(dir.join("old.tex"), old_flat).map_err(|e| e.to_string())?;
+    std::fs::write(dir.join("new.tex"), new_flat).map_err(|e| e.to_string())?;
+    // whole formulas marked, not their insides, which keeps the maths compiling
+    let diff = tex_tool("latexdiff", &["--encoding=utf8", "--math-markup=whole", "old.tex", "new.tex"], &dir)?;
+    std::fs::write(dir.join("diff.tex"), diff).map_err(|e| e.to_string())?;
+    run_tex(&root_dir, &format!("{DIFF_DIR}/diff.tex"), DIFF_DIR, false)
+}
+
+#[tauri::command]
+async fn compile_diff(root: String, main: String, base: DiffBase) -> Result<CompileResult, String> {
+    tauri::async_runtime::spawn_blocking(move || compile_diff_blocking(&root, &main, base))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 async fn git_overview(root: String) -> Result<GitOverview, String> {
     tauri::async_runtime::spawn_blocking(move || {
@@ -2528,7 +2624,7 @@ pub fn run() {
         .plugin(tauri_plugin_clipboard_manager::init())
         .invoke_handler(tauri::generate_handler![
             list_files, list_dirs, create_dir, rename_path, delete_path, import_files,
-            read_file, write_file, read_binary, compile, compile_snippet, pdf_to_svg,
+            read_file, write_file, read_binary, compile, compile_snippet, pdf_to_svg, compile_diff, git_log,
             parse_notebook, run_notebook, generate_style,
             git_status, git_branch, git_overview, git_diff, git_commit, git_push, git_init, git_identity, search_project, read_settings, write_settings,
             kernel_start, kernel_run_cell, kernel_stop,
@@ -2599,6 +2695,33 @@ mod tests {
         if svg("figures/thumb.svg").is_ok() {
             assert!(std::fs::read_to_string(dir.join("figures/thumb.svg")).unwrap().contains("<svg"));
         }
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn compiles_a_diff_against_a_commit() {
+        if Command::new("latexdiff").arg("--version").output().is_err() || !(has("latexmk") || has("tectonic")) {
+            return; // no TeX Live here
+        }
+        let dir = std::env::temp_dir().join(format!("scribe-diff-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("sections")).unwrap();
+        let root = dir.to_string_lossy().to_string();
+        let paper = "\\documentclass{article}\n\\begin{document}\nThe first version.\n\\input{sections/a}\n\\end{document}\n";
+        std::fs::write(dir.join("main.tex"), paper).unwrap();
+        std::fs::write(dir.join("sections/a.tex"), "A section.\n").unwrap();
+        let git = |args: &[&str]| Command::new("git").args(args).current_dir(&dir).env("GIT_AUTHOR_NAME", "t").env("GIT_AUTHOR_EMAIL", "t@t").env("GIT_COMMITTER_NAME", "t").env("GIT_COMMITTER_EMAIL", "t@t").output().unwrap();
+        git(&["init", "-q"]);
+        git(&["add", "."]);
+        git(&["commit", "-q", "-m", "first"]);
+        std::fs::write(dir.join("sections/a.tex"), "A section, now longer.\n").unwrap();
+
+        assert!(compile_diff_blocking(&root, "main.tex", DiffBase { git: Some("--output=x".into()), history: None }).is_err());
+        let res = compile_diff_blocking(&root, "main.tex", DiffBase { git: Some("HEAD".into()), history: None }).unwrap();
+        assert!(res.ok, "diff failed:\n{}", res.log);
+        assert_eq!(res.pdf.as_deref(), Some("build/diff/diff.pdf"));
+        let diff = std::fs::read_to_string(dir.join("build/diff/diff.tex")).unwrap();
+        assert!(diff.contains("\\DIFadd"), "the change in the \\input file isn't marked");
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
