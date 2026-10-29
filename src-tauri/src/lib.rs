@@ -4,6 +4,8 @@
 //! `resolve` rejects anything that escapes the root (`..`, absolute paths,
 //! symlinks pointing outside). That boundary matters once projects are shared.
 
+mod ai;
+
 use serde::{Deserialize, Serialize};
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
@@ -2628,6 +2630,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             list_files, list_dirs, create_dir, rename_path, delete_path, import_files,
             read_file, write_file, read_binary, compile, compile_snippet, pdf_to_svg, compile_diff, git_log,
+            ai::ai_stream, ai::ai_set_key, ai::ai_has_key, ai::ai_cancel, ai::ai_models,
             parse_notebook, run_notebook, generate_style,
             git_status, git_branch, git_overview, git_diff, git_commit, git_push, git_init, git_identity, search_project, read_settings, write_settings,
             kernel_start, kernel_run_cell, kernel_stop,

@@ -25,6 +25,8 @@ import { appearance, appearanceListeners, applyAppearance, isDark, updateAppeara
 import { focusOn, toggleFocus } from "./focus";
 import { editEquation } from "./equation";
 import { compareWithVersion, quoteChange, responseLetter } from "./revisions";
+import { editWithAi } from "./aiedit";
+import { initAiSettings } from "./aisettings";
 import { checkForUpdates, checkForUpdatesLater } from "./updates";
 import { openSnippetEditor } from "./snippets";
 import { initAppearanceControls, openThemeEditor, renderAppearanceControls, useThemeOfKind } from "./themeeditor";
@@ -231,6 +233,8 @@ register(
   { id: "edit.tikz", group: "Edit", title: "Preview TikZ", keys: "Mod-Alt-k", enabled: () => PICTURE_FILE.test(activeEditor()?.dom.dataset.path ?? ""), run: () => previewTikz(activeEditor()) },
   { id: "edit.equation", group: "Edit", title: "Edit Equation…", keys: "Mod-Alt-e", enabled: () => !!activeEditor()?.dom.dataset.path?.endsWith(".tex"), run: editEquation },
   { id: "edit.snippets", group: "Edit", title: "Snippets…", run: openSnippetEditor },
+  { id: "edit.ai", group: "Edit", title: "Edit with AI…", keys: "Mod-Alt-i", enabled: () => !!activeEditor() && !activeEditor()!.state.selection.main.empty, run: editWithAi },
+  { id: "view.assistant", group: "View", title: "Assistant", keys: "Mod-Alt-a", enabled: hasProject, run: () => showSidebar("assistant") },
   { id: "edit.tikzInsert", group: "Edit", title: "Insert TikZ Picture…", enabled: () => PICTURE_FILE.test(activeEditor()?.dom.dataset.path ?? ""), run: insertTikzPicture },
   { id: "file.sketch", group: "File", title: "Insert Sketch…", keys: "Mod-Alt-d", enabled: () => isNote(activeEditor()?.dom.dataset.path), run: newSketch },
   { id: "file.review", group: "File", title: "Review Cards", enabled: hasProject, run: () => reviewCards() },
@@ -318,13 +322,13 @@ const MENU_ICON = {
 
 createMenubar($("menubar"), [
   { title: "File", icon: MENU_ICON.file, entries: ["file.new", "file.newNotebook", "file.newFolder", "file.upload", "-", "file.newNote", "file.todaysNote", "file.quickNote", "file.sketch", "file.notePdf", "file.review", "file.anki", "-", "file.newProject", "file.open", "file.import", { title: "Open Recent", icon: ICONS.recent, submenu: recentEntries }, "-", "file.save", "file.rename", "file.trash", "-", "file.export", "file.response", "file.reveal", "-", "file.closeTab", "file.close"] },
-  { title: "Edit", icon: MENU_ICON.edit, entries: ["edit.undo", "edit.redo", "-", "edit.cut", "edit.copy", "edit.paste", "edit.selectAll", "-", "edit.find", "edit.findInProject", "edit.comment", "-", "edit.cite", "edit.zotero", "edit.table", "edit.equation", "edit.tikz", "edit.tikzInsert", "edit.snippets", "edit.copyLatex"] },
+  { title: "Edit", icon: MENU_ICON.edit, entries: ["edit.undo", "edit.redo", "-", "edit.cut", "edit.copy", "edit.paste", "edit.selectAll", "-", "edit.find", "edit.findInProject", "edit.comment", "-", "edit.cite", "edit.zotero", "edit.table", "edit.equation", "edit.tikz", "edit.tikzInsert", "edit.snippets", "-", "edit.ai", "edit.copyLatex"] },
   {
     title: "View",
     icon: MENU_ICON.view,
     entries: [
       "view.palette", "view.quickOpen", "-",
-      "view.files", "edit.findInProject", "view.figures", "view.outline", "view.git", "view.references", "view.symbols", "view.notes", "view.history", "view.review", "-",
+      "view.files", "edit.findInProject", "view.figures", "view.outline", "view.git", "view.references", "view.symbols", "view.notes", "view.history", "view.review", "view.assistant", "-",
       "view.openSide", "view.closeSide", "-",
       "view.sidebar", "view.preview", "view.focus", "view.log", "view.terminal", "-",
       { title: "Theme", icon: ICONS.theme, submenu: () => ["view.themeDark", "view.themeLight", "view.themeSystem", "-", "view.pdfDark", "-", "view.themeEdit"] }, "-",
@@ -414,6 +418,8 @@ async function toggleDarkPdf() {
 }
 
 $("setting-snippets").addEventListener("click", openSnippetEditor);
+$("tab-assistant").onclick = () => showSidebar("assistant");
+initAiSettings();
 
 // the look is the computer's, not the project's: applied before any project opens
 appearanceListeners.push(refreshEditors);

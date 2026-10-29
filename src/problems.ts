@@ -6,6 +6,7 @@ import { view } from "./editor";
 import { ICONS } from "./icons";
 import { revealLine } from "./project";
 import { renderProblemCount } from "./statusbar";
+import { aiReady } from "./ai";
 
 let problems: Problem[] = [];
 
@@ -46,6 +47,19 @@ export function setProblems(next: Problem[], log: string, visible: boolean, titl
     where.className = "problem-where";
     where.textContent = problem.line ? `${problem.file}:${problem.line}` : problem.file;
     row.append(icon, text, where);
+    // the model's fix for an error, reviewed before it goes in
+    if (problem.severity === "error" && problem.line && aiReady()) {
+      const fix = document.createElement("span");
+      fix.className = "problem-fix";
+      fix.textContent = "Fix";
+      fix.title = "Ask the AI for a fix, and review it before it goes in";
+      fix.setAttribute("role", "button");
+      fix.onclick = (e) => {
+        e.stopPropagation();
+        import("./aiedit").then((m) => m.fixProblem(problem));
+      };
+      row.append(fix);
+    }
     row.title = `${problem.message}${problem.hint ? `\n${problem.hint}` : ""}\n${where.textContent}`;
     row.onclick = () => revealLine(problem.file, problem.line);
     frag.appendChild(row);

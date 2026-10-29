@@ -2,6 +2,12 @@
 
 Each version's notes become its release notes on GitHub.
 
+## Unreleased
+
+- An assistant with the model of your choice (Anthropic, OpenAI, Gemini, OpenAI-compatible, or
+  Ollama on this computer): a chat that knows the paper, edits to the selection reviewed word by
+  word, fixes for compile errors, and suggestions as you type. Keys stay in the system keychain.
+
 ## 1.1.0
 
 The first release.

@@ -23,6 +23,7 @@ import { refreshBranch } from "./statusbar";
 import { renderSymbols } from "./symbols";
 import { dropTabs, renameTabs } from "./tabs";
 import { NotebookInfo } from "./types";
+import { renderAssistant } from "./assistant";
 
 export async function takenPaths(): Promise<Set<string>> {
   const [files, dirs] = await Promise.all([listFiles(), listDirs()]);
@@ -430,16 +431,17 @@ export async function refreshFiles() {
 }
 
 // ---------- sidebar tabs ----------
-export type SidebarTab = "files" | "search" | "figures" | "git" | "references" | "symbols" | "notes" | "history" | "review";
+export type SidebarTab = "files" | "search" | "figures" | "git" | "references" | "symbols" | "notes" | "history" | "review" | "assistant";
 
 const PANEL: Record<SidebarTab, string> = {
   files: "files-panel", search: "search-panel", figures: "figures-panel", git: "git-panel",
   references: "references-panel", symbols: "symbols-panel", notes: "notes-panel", history: "history-panel", review: "review-panel",
+  assistant: "assistant-panel",
 };
 
 const PANEL_NAME: Record<SidebarTab, string> = {
   files: "File tree", search: "Search", figures: "Figures and values", git: "Git", references: "References",
-  symbols: "Symbols", notes: "Notes", history: "History", review: "Review",
+  symbols: "Symbols", notes: "Notes", history: "History", review: "Review", assistant: "Assistant",
 };
 
 /** The panel showing in the sidebar. */
@@ -456,12 +458,13 @@ export function showSidebar(which: SidebarTab) {
   $("side-name").textContent = PANEL_NAME[which];
   // Each panel shows its own actions: creating things beside the file list, refresh elsewhere.
   $("side-new").hidden = $("side-new-folder").hidden = $("side-upload").hidden = which !== "files";
-  $("side-refresh").hidden = which === "files" || which === "search" || which === "symbols" || which === "notes";
+  $("side-refresh").hidden = which === "files" || which === "search" || which === "symbols" || which === "notes" || which === "assistant";
   $("side-add-cite").hidden = $("side-zotero").hidden = which !== "references";
   $("side-refresh").onclick = () => showSidebar(which);
   if (which === "figures") renderGallery();
   if (which === "files") renderOutline();
   if (which === "review") renderReview();
+  if (which === "assistant") renderAssistant();
   if (which === "notes") renderNotes();
   if (which === "history") renderHistory();
   if (which === "references") renderReferences();

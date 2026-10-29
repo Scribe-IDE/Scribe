@@ -24,6 +24,10 @@ zip = { version = "9.0.3", default-features = false, features = ["deflate"] }
 similar = "2"
 tauri-plugin-updater = "2.14.1"
 tauri-plugin-process = "2.4.0"
+reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
+futures-util = "0.3"
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service", "crypto-rust"] }
 
 # The system spell checker (same dictionaries and learned words as every other Mac app).
 [target.'cfg(target_os = "macos")'.dependencies]

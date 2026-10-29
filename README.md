@@ -64,6 +64,13 @@ run records the Python version, packages, seed and git commit.
 about half a second. Points and nodes can be dragged, shapes drawn on a grid and restyled from a
 style bar; every change is written back into the TikZ. Pictures export to PDF, SVG or PNG.
 
+**An assistant, with your own model.** Claude, GPT, Gemini, any OpenAI-compatible service, or a
+model running on your computer with Ollama: you choose, with your own key, which stays in the
+system keychain. Ask about the paper in a side panel; have a selection rewritten, shortened or
+corrected, and review the change word by word before it goes in; fix a compile error from the
+Problems list; or let it suggest the rest of a sentence as you type (Tab takes it). Only what a
+request needs is sent, and the panel says what that is.
+
 **References.** Add a BibTeX entry from a DOI or an arXiv ID, or pick it from a running Zotero.
 
 **Before submitting.** One command lists missing citations and labels, figures the text never
@@ -169,14 +176,14 @@ Debian and Ubuntu:
 
 ```sh
 sudo apt install libwebkit2gtk-4.1-dev build-essential curl wget file \
-  libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+  libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev libdbus-1-dev pkg-config
 ```
 
 Fedora:
 
 ```sh
 sudo dnf install webkit2gtk4.1-devel openssl-devel curl wget file \
-  libappindicator-gtk3-devel librsvg2-devel
+  libappindicator-gtk3-devel librsvg2-devel dbus-devel
 sudo dnf group install "c-development"
 ```
 
@@ -184,7 +191,7 @@ Arch:
 
 ```sh
 sudo pacman -S webkit2gtk-4.1 base-devel curl wget file openssl \
-  appmenu-gtk-module libappindicator-gtk3 librsvg xdotool
+  appmenu-gtk-module libappindicator-gtk3 librsvg xdotool dbus
 ```
 
 `npm run tauri build` produces `.deb`, `.rpm` and AppImage packages.
