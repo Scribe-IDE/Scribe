@@ -2,6 +2,12 @@
 
 Each version's notes become its release notes on GitHub.
 
+## 1.2.1
+
+- macOS: the app is signed as a whole, so a downloaded copy can be opened with Open Anyway in
+  System Settings > Privacy & Security instead of being reported as damaged.
+- The welcome screen and About show the right version.
+
 ## 1.2.0
 
 - Track changes and comments, kept in the source with the `changes` package: typing and deleting
