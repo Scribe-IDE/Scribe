@@ -6,8 +6,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/GeorgeKiritsis/Scribe/actions/workflows/check.yml"><img src="https://img.shields.io/github/actions/workflow/status/GeorgeKiritsis/Scribe/check.yml?branch=main&style=flat-square&labelColor=1a1917&label=checks" alt="Checks"></a>
-  <a href="https://github.com/GeorgeKiritsis/Scribe/releases/latest"><img src="https://img.shields.io/github/v/release/GeorgeKiritsis/Scribe?style=flat-square&color=d4a556&labelColor=1a1917&label=release" alt="Latest release"></a>
+  <a href="https://github.com/Scribe-IDE/Scribe/actions/workflows/check.yml"><img src="https://img.shields.io/github/actions/workflow/status/Scribe-IDE/Scribe/check.yml?branch=main&style=flat-square&labelColor=1a1917&label=checks" alt="Checks"></a>
+  <a href="https://github.com/Scribe-IDE/Scribe/releases/latest"><img src="https://img.shields.io/github/v/release/Scribe-IDE/Scribe?style=flat-square&color=d4a556&labelColor=1a1917&label=release" alt="Latest release"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-d4a556?style=flat-square&labelColor=1a1917" alt="MIT license"></a>
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-d4a556?style=flat-square&labelColor=1a1917" alt="macOS, Windows, Linux">
   <img src="https://img.shields.io/badge/Tauri-2-d4a556?style=flat-square&labelColor=1a1917&logo=tauri&logoColor=white" alt="Tauri 2">
@@ -116,7 +116,7 @@ way.
 ## Download
 
 Installers for macOS, Windows and Linux are attached to each
-[release](https://github.com/GeorgeKiritsis/Scribe/releases/latest). Scribe updates itself from
+[release](https://github.com/Scribe-IDE/Scribe/releases/latest). Scribe updates itself from
 there: when a new version is out, it offers to install it.
 
 The macOS app isn't notarized by Apple yet, so the first time, open it with right-click > Open.

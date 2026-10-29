@@ -44,7 +44,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDVFMUE2QTU2OEIwODhDMTcKUldRWGpBaUxWbW9hWGgzWjhyZG8rMll5RVduc3dUMDNGUlRiM1FCZDVOWWdqTkU3NERQYzdVbWMK",
       "endpoints": [
-        "https://github.com/GeorgeKiritsis/Scribe/releases/latest/download/latest.json"
+        "https://github.com/Scribe-IDE/Scribe/releases/latest/download/latest.json"
       ]
     }
   }
