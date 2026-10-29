@@ -137,6 +137,24 @@ see them, and drag one.
   \label{fig:scopes}
 \end{figure}
 
+\section{Draw here}
+A canvas to try the drawing tools on. Pick the arrow tool (A) and drag from one box to another:
+the arrow is written as \texttt{(in) -{}- (out)}, so it follows the boxes when you move them.
+Click a shape to select it and change its colour, width or dash in the style bar; double-click a
+box to change its text.
+
+\begin{figure}[ht]
+  \centering
+  \begin{tikzpicture}
+    \path[use as bounding box] (0,0) rectangle (8,4);
+    \node[draw, rounded corners=2pt, fill=amber!20] (in) at (1.5,2) {Input};
+    \node[draw, rounded corners=2pt] (model) at (4,2) {Model};
+    \node[draw, circle] (out) at (6.5,2) {Out};
+  \end{tikzpicture}
+  \caption{Connect the boxes.}
+  \label{fig:draw}
+\end{figure}
+
 \section{A picture in its own file}
 \texttt{pictures/spiral.tikz} holds only the picture, and the paper inputs it. Open the file and
 preview it: it still uses the paper's colours.

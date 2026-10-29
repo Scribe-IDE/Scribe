@@ -1,5 +1,6 @@
 // TikZ source: finding the picture at the cursor, building the document that previews it on its
 // own, and reading TikZ syntax. Pure: no DOM, no editor, so it can be tested on its own.
+import { groupOf, parseOptions, writeOptions } from "./tikzoptions";
 
 const ENVS = "tikzpicture|tikzcd|circuitikz";
 /** Files that can hold pictures: the paper's .tex files and stand-alone .tikz pictures. */
@@ -86,9 +87,38 @@ export interface NodeRef {
   scope: number;
 }
 
+export type StatementKind = "line" | "polyline" | "curve" | "rectangle" | "circle" | "ellipse" | "arc" | "node" | "coordinate" | "other";
+
+/** One `\draw …;`, `\node …;` and so on at the top level of a picture or scope. */
+export interface Statement {
+  /** From the command to just after its `;`. */
+  from: number;
+  to: number;
+  command: string;
+  /** Its options `[…]`, or an empty range just after the command when it has none. */
+  optionsFrom: number;
+  optionsTo: number;
+  scope: number;
+  kind: StatementKind;
+  /** Indices into PictureScan.coords of the points written in it. */
+  coords: number[];
+  /** Nodes it refers to, as in `(nb) -- (fig)`. */
+  refs: string[];
+  /** The node it defines (`\node (name)`, `\coordinate (name)`). */
+  defines: string | null;
+  /** A node's text: the inside of its `{…}`. */
+  textFrom: number;
+  textTo: number;
+  /** Selectable in the preview: not in a loop, a plot, or a clip, and not the picture's bounding box. */
+  selectable: boolean;
+}
+
 export interface PictureScan {
   coords: Coordinate[];
   nodes: NodeRef[];
+  statements: Statement[];
+  /** Every node name the picture defines (outside loops). */
+  names: string[];
   /** Where each scope's body starts (index = scope number). */
   scopes: number[];
   /** Where `\end{tikzpicture}` is; -1 when the picture can't be instrumented (tikzcd). */
@@ -117,26 +147,83 @@ function skipOptions(text: string, i: number): number {
   return i;
 }
 
-/** The plain coordinates of a picture and its scopes. Coordinates that are relative (`++(1,0)`),
- *  polar, inside a pgfplots axis, or on a statement that shifts or scales itself are left out. */
+const NAMED = /(?:\\node|\bnode|\\coordinate|\bcoordinate)\s*(?:\[[^\]]*\])?\s*\(([^()\\\s,.]+)\)|\bname\s*=\s*([\w-]+)/g;
+
+/** Names of nodes and coordinates defined in some TikZ: `\node (a)`, `node[…] (a)`, `coordinate (a)`, `name=a`. */
+export function definedNames(text: string): string[] {
+  const names = [...text.matchAll(NAMED)].map((m) => m[1] ?? m[2]);
+  return [...new Set(names)].filter((n) => !/^-?[\d.]+$/.test(n));
+}
+
+/** The kind of shape a statement draws, from what its path says. */
+function kindOf(command: string, body: string): StatementKind {
+  if (command === "node") return "node";
+  if (command === "coordinate") return "coordinate";
+  const path = body.replace(/\{[^{}]*\}/g, "{}"); // node texts don't count
+  if (/\barc\b/.test(path)) return "arc";
+  if (/\bellipse\b/.test(path)) return "ellipse";
+  if (/\bcircle\b/.test(path)) return "circle";
+  if (/\brectangle\b/.test(path)) return "rectangle";
+  if (/\.\.\s*controls\b/.test(path)) return "curve";
+  const segments = (path.match(/--|\|-|-\|/g) ?? []).length;
+  if (segments >= 2 || /\bcycle\b/.test(path)) return "polyline";
+  return segments === 1 ? "line" : "other";
+}
+
+/** The plain coordinates of a picture, its statements and its scopes. Coordinates that are
+ *  relative (`++(1,0)`), polar, inside a pgfplots axis, or on a statement that shifts or scales
+ *  itself are left out, as are statements in loops. */
 export function scanPicture(picture: string): PictureScan {
   const head = /^\\begin\{(tikzpicture|circuitikz)\}/.exec(picture);
-  if (!head) return { coords: [], nodes: [], scopes: [], end: -1 };
+  if (!head) return { coords: [], nodes: [], statements: [], names: [], scopes: [], end: -1 };
   const scopes = [skipOptions(picture, head[0].length)];
   const coords: Coordinate[] = [];
   const nodes: NodeRef[] = [];
+  const statements: Statement[] = [];
   const stack = [0];
-  let loops = 0;
+  let depth = 0;
+  /** A \foreach in progress: its brace depth, and how many groups have closed there (list, then body). */
+  let loop: { depth: number; groups: number } | null = null;
   let axis = 0;
   let moved = false;
+  let current: Statement | null = null;
   let end = -1;
+  const finish = (to: number) => {
+    if (!current) return;
+    current.to = to;
+    const body = picture.slice(current.optionsTo, to);
+    current.kind = kindOf(current.command, body);
+    current.defines = current.command === "node" || current.command === "coordinate"
+      ? /^\s*\(([^()\\\s,.]+)\)/.exec(body)?.[1] ?? null
+      : null;
+    current.refs = [...new Set([...body.matchAll(/\(([A-Za-z][\w-]*)(?:\.[\w ]+)?\)/g)].map((m) => m[1]))]
+      .filter((name) => name !== current!.defines);
+    if (current.command === "node") {
+      // the node's text is the last {…} before the ;
+      const close = picture.lastIndexOf("}", to);
+      let open = close;
+      for (let d = 0; open > current.optionsTo; open--) {
+        if (picture[open] === "}") d++;
+        else if (picture[open] === "{" && --d === 0) break;
+      }
+      if (close > open && open > current.optionsTo) [current.textFrom, current.textTo] = [open + 1, close];
+    }
+    statements.push(current);
+    current = null;
+  };
   for (let i = scopes[0]; i < picture.length && end < 0; i++) {
     const ch = picture[i];
     if (ch === "%") {
       while (i + 1 < picture.length && picture[i + 1] !== "\n") i++;
+    } else if (ch === "{") {
+      depth++;
+    } else if (ch === "}") {
+      depth = Math.max(0, depth - 1);
+      if (loop && depth === loop.depth && ++loop.groups >= 2) loop = null; // the loop's body closed
     } else if (ch === ";") {
       moved = false;
-      loops = 0;
+      if (loop && depth === loop.depth) loop = null;
+      if (depth === 0) finish(i + 1);
     } else if (ch === "\\") {
       const rest = picture.slice(i, i + 40);
       let m: RegExpExecArray | null;
@@ -161,20 +248,28 @@ export function scanPicture(picture: string): PictureScan {
         end = i;
       } else if ((m = PATH_COMMANDS.exec(rest))) {
         const after = skipOptions(picture, i + m[0].length);
-        moved = MOVES.test(picture.slice(i + m[0].length, after));
+        const options = picture.slice(i + m[0].length, after);
+        moved = MOVES.test(options);
+        const scope = stack[stack.length - 1];
+        const hasOptions = after > i + m[0].length;
+        const optionsFrom = hasOptions ? picture.indexOf("[", i + m[0].length) : i + m[0].length;
+        const optionsTo = hasOptions ? after : optionsFrom;
+        if (depth === 0 && !current) {
+          current = {
+            from: i, to: i, command: m[1], optionsFrom, optionsTo, scope, kind: "other", coords: [], refs: [],
+            defines: null, textFrom: -1, textTo: -1,
+            selectable: !axis && !loop && scope >= 0 && m[1] !== "clip" && !/use as bounding box|\bclip\b/.test(options),
+          };
+        }
         // \node[…] (name) not followed by `at`: a node placed relative to others
-        const named = m[1] === "node" && !axis && !loops && stack[stack.length - 1] >= 0
+        const named = m[1] === "node" && !axis && !loop && scope >= 0
           ? /^\s*\(([^()\\\s,.]+)\)\s*(at\b)?/.exec(picture.slice(after, after + 80))
           : null;
-        if (named && !named[2]) {
-          const hasOptions = after > i + m[0].length;
-          const open = hasOptions ? picture.indexOf("[", i + m[0].length) : i + m[0].length;
-          nodes.push({ name: named[1], optionsFrom: open, optionsTo: hasOptions ? after : open, scope: stack[stack.length - 1] });
-        }
+        if (named && !named[2]) nodes.push({ name: named[1], optionsFrom, optionsTo, scope });
         i += m[0].length - 1;
       } else if ((m = /^\\foreach\b/.exec(rest))) {
-        // a node in a loop is many nodes; leave those alone (counted until the statement ends)
-        loops++;
+        // a node in a loop is many nodes; leave those alone
+        if (!loop || loop.depth === depth) loop = { depth, groups: 0 };
         i += m[0].length - 1;
       } else {
         i++; // an escaped character or the first letter of a command
@@ -183,12 +278,15 @@ export function scanPicture(picture: string): PictureScan {
       const m = LITERAL.exec(picture.slice(i, i + 60));
       const before = picture.slice(Math.max(0, i - 24), i);
       if (m && !/\+\s*$/.test(before) && BEFORE_COORD.test(before)) {
+        if (current && depth === 0) current.coords.push(coords.length);
         coords.push({ from: i, to: i + m[0].length, x: Number(m[1]), y: Number(m[2]), scope: stack[stack.length - 1] });
         i += m[0].length - 1;
       }
     }
   }
-  return { coords, nodes, scopes, end };
+  const names = definedNames(statements.filter((st) => st.selectable || st.command === "node" || st.command === "coordinate")
+    .map((st) => picture.slice(st.from, st.to)).join("\n"));
+  return { coords, nodes, statements, names, scopes, end };
 }
 
 /** Macros the instrumented picture uses; they go in the preview's preamble. Each scope gets
@@ -197,19 +295,43 @@ export function scanPicture(picture: string): PictureScan {
 export const INSTRUMENT_MACROS = String.raw`\makeatletter
 \newcommand\ScribeMark[1]{\begin{pgfinterruptboundingbox}\path (0,0) coordinate (scribeo#1) (1,0) coordinate (scribex#1) (0,1) coordinate (scribey#1) (10pt,0pt) coordinate (scribeu#1) (0pt,10pt) coordinate (scribev#1);\end{pgfinterruptboundingbox}}
 \newcommand\ScribeAt[2]{\pgfpointanchor{#1}{#2}\typeout{SCRIBE #1 #2 \the\pgf@x\space\the\pgf@y}}
-\newcommand\ScribeNode[1]{\pgfutil@ifundefined{pgf@sh@ns@#1}{}{\ScribeAt{#1}{center}}}
+\newcommand\ScribeNode[1]{\pgfutil@ifundefined{pgf@sh@ns@#1}{}{\ScribeAt{#1}{center}\ScribeAt{#1}{south west}\ScribeAt{#1}{north east}}}
 \newcommand\ScribeReport[2]{{\pgftransformreset\ScribeAt{current bounding box}{south west}\ScribeAt{current bounding box}{north east}\foreach\scribek in {0,...,#1}{\ScribeAt{scribeo\scribek}{center}\ScribeAt{scribex\scribek}{center}\ScribeAt{scribey\scribek}{center}\ScribeAt{scribeu\scribek}{center}\ScribeAt{scribev\scribek}{center}}#2}}
 \makeatother`;
 
+/** The name of the box around statement `k`. */
+export const statementBox = (k: number) => `scribes${k}`;
+
 /** The picture with the marks put in. Nothing is put on a line of its own, so the line numbers
- *  of errors stay the same. */
+ *  of errors stay the same. Each selectable statement is wrapped in a scope that records its box. */
 export function instrument(picture: string, scan: PictureScan): string {
   if (scan.end < 0) return picture;
-  const inserts: [number, string][] = scan.scopes.map((at, k) => [at, `\\ScribeMark{${k}}`]);
-  const nodes = scan.nodes.map((n) => `\\ScribeNode{${n.name}}`).join("");
-  inserts.push([scan.end, `\\ScribeReport{${scan.scopes.length - 1}}{${nodes}}`]);
+  // [where, order among inserts at the same place, text]: a scope's end comes before what follows it
+  const inserts: [number, number, string][] = scan.scopes.map((at, k) => [at, 1, `\\ScribeMark{${k}}`]);
+  scan.statements.forEach((st, k) => {
+    // `use as bounding box` stops TikZ measuring anything after it, the shapes' boxes too; in the
+    // preview the path just counts towards the size like any other (it draws nothing either way)
+    const options = picture.slice(st.optionsFrom, st.optionsTo);
+    if (/use as bounding box/.test(options)) {
+      const kept = parseOptions(options).filter((e) => e.trim() !== "use as bounding box");
+      inserts.push([st.optionsFrom, 1, `${writeOptions(kept)}\u0000${st.optionsTo - st.optionsFrom}`]);
+    }
+    if (!st.selectable) return;
+    inserts.push([st.from, 2, `\\begin{scope}[local bounding box=${statementBox(k)}]`], [st.to, 0, "\\end{scope}"]);
+  });
+  const report = [
+    ...scan.names.map((n) => `\\ScribeNode{${n}}`),
+    ...scan.statements.flatMap((st, k) => (st.selectable ? [`\\ScribeNode{${statementBox(k)}}`] : [])),
+  ].join("");
+  inserts.push([scan.end, 3, `\\ScribeReport{${scan.scopes.length - 1}}{${report}}`]);
   let out = picture;
-  for (const [at, text] of inserts.sort((a, b) => b[0] - a[0])) out = out.slice(0, at) + text + out.slice(at);
+  // from the end backwards; at one place, later ones first so they end up after the earlier
+  inserts.sort((a, b) => b[0] - a[0] || b[1] - a[1]);
+  for (const [at, , text] of inserts) {
+    // "text\0n" replaces the n characters at `at` instead of inserting
+    const [insert, replace] = text.split("\u0000");
+    out = out.slice(0, at) + insert + out.slice(at + (replace ? Number(replace) : 0));
+  }
   return out;
 }
 
@@ -223,6 +345,8 @@ export interface Marks {
   scopes: { o: Point; x: Point; y: Point; u: Point; v: Point }[];
   /** Centres of named nodes, in pt. */
   nodes: Map<string, Point>;
+  /** Boxes (south west, north east) of named nodes and of statements (`scribesK`), in pt. */
+  boxes: Map<string, [Point, Point]>;
 }
 
 export function readMarks(log: string): Marks | null {
@@ -239,11 +363,16 @@ export function readMarks(log: string): Marks | null {
     scopes.push({ o: get("o"), x: get("x"), y: get("y"), u: get("u") ?? get("x"), v: get("v") ?? get("y") });
   }
   const nodes = new Map<string, Point>();
+  const boxes = new Map<string, [Point, Point]>();
   for (const [key, p] of at) {
-    const m = /^(.+) center$/.exec(key);
-    if (m && !/^scribe[oxyuv]\d+$/.test(m[1])) nodes.set(m[1], p);
+    const m = /^(.+) (center|south west)$/.exec(key);
+    if (!m || /^scribe[oxyuv]\d+$/.test(m[1])) continue;
+    if (m[2] === "center" && !/^scribes\d+$/.test(m[1])) nodes.set(m[1], p);
+    const ne = at.get(`${m[1]} north east`);
+    // an empty box (a coordinate draws nothing) comes out inside out
+    if (m[2] === "south west" && ne && ne[0] >= p[0] && ne[1] >= p[1]) boxes.set(m[1], [p, ne]);
   }
-  return { sw, ne, scopes, nodes };
+  return { sw, ne, scopes, nodes, boxes };
 }
 
 /** The standalone page's border around the picture, in pt (see CLASS). */
@@ -401,20 +530,68 @@ export function snippetName(source: string): string {
 }
 
 // ---------- drawing new shapes ----------
-export type ShapeTool = "line" | "arrow" | "rectangle" | "circle" | "text";
+export type ShapeTool = "line" | "arrow" | "polyline" | "curve" | "rectangle" | "circle" | "ellipse" | "arc" | "text" | "box" | "round" | "dot";
 
-/** The TikZ for a shape drawn from `a` to `b` (for a circle: centre and a point on it). */
-export function shapeSource(tool: ShapeTool, a: Point, b: Point): string {
-  const p = (q: Point) => formatCoordinate(q[0], q[1]);
+/** A point of a new shape: where it is, and the node it is on, if any (then the TikZ says `(name)`). */
+export interface End { point: Point; node?: string }
+
+const round = (v: number, places = 3) => {
+  const n = Math.round(v * 10 ** places) / 10 ** places;
+  return Object.is(n, -0) ? 0 : n;
+};
+
+/** The TikZ for a new shape. `ends` are the points clicked (two for most, three for an arc: centre,
+ *  start, end; any number for a polyline). `options` go in its `[…]`; `name` names a new node.
+ *  `closed` closes a polyline with `-- cycle`. */
+export function shapeSource(tool: ShapeTool, ends: End[], options = "", name = "", closed = false): string {
+  const ref = (e: End) => (e.node ? `(${e.node})` : formatCoordinate(e.point[0], e.point[1]));
+  const pt = (p: Point) => formatCoordinate(p[0], p[1]);
+  const opts = (extra = "") => {
+    const all = [extra, options].filter(Boolean).join(", ");
+    return all ? `[${all}]` : "";
+  };
+  const [a, b, c] = ends;
   switch (tool) {
-    case "line": return `\\draw ${p(a)} -- ${p(b)};`;
-    case "arrow": return `\\draw[->] ${p(a)} -- ${p(b)};`;
-    case "rectangle": return `\\draw ${p(a)} rectangle ${p(b)};`;
-    case "circle": {
-      const r = Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) * 1000) / 1000;
-      return `\\draw ${p(a)} circle (${r});`;
+    case "line": return `\\draw${opts()} ${ref(a)} -- ${ref(b)};`;
+    case "arrow": return `\\draw${opts(/(^|,\s*)[<>|]?-[<>|]?|-\{/.test(options) ? "" : "->")} ${ref(a)} -- ${ref(b)};`;
+    case "polyline": return `\\draw${opts()} ${ends.map(ref).join(" -- ")}${closed ? " -- cycle" : ""};`;
+    case "curve": {
+      // controls a third and two thirds of the way along, bent to the left of a → b
+      const [dx, dy] = [b.point[0] - a.point[0], b.point[1] - a.point[1]];
+      const bend = 0.3;
+      const c1: Point = [round(a.point[0] + dx / 3 - dy * bend, 2), round(a.point[1] + dy / 3 + dx * bend, 2)];
+      const c2: Point = [round(a.point[0] + (2 * dx) / 3 - dy * bend, 2), round(a.point[1] + (2 * dy) / 3 + dx * bend, 2)];
+      return `\\draw${opts()} ${ref(a)} .. controls ${pt(c1)} and ${pt(c2)} .. ${ref(b)};`;
     }
-    case "text": return `\\node at ${p(a)} {Text};`;
+    case "rectangle": return `\\draw${opts()} ${pt(a.point)} rectangle ${pt(b.point)};`;
+    case "circle": return `\\draw${opts()} ${pt(a.point)} circle (${round(Math.hypot(b.point[0] - a.point[0], b.point[1] - a.point[1]))});`;
+    case "ellipse": {
+      const centre: Point = [(a.point[0] + b.point[0]) / 2, (a.point[1] + b.point[1]) / 2];
+      const [rx, ry] = [round(Math.abs(b.point[0] - a.point[0]) / 2), round(Math.abs(b.point[1] - a.point[1]) / 2)];
+      return `\\draw${opts()} ${pt(centre)} ellipse [x radius=${rx}, y radius=${ry}];`;
+    }
+    case "arc": {
+      const r = Math.hypot(b.point[0] - a.point[0], b.point[1] - a.point[1]);
+      const angle = (p: Point) => (Math.atan2(p[1] - a.point[1], p[0] - a.point[0]) * 180) / Math.PI;
+      const start = Math.round(angle(b.point));
+      let stop = Math.round(angle(c.point));
+      if (stop <= start) stop += 360; // anticlockwise from the start
+      const from: Point = [a.point[0] + r * Math.cos((start * Math.PI) / 180), a.point[1] + r * Math.sin((start * Math.PI) / 180)];
+      return `\\draw${opts()} ${pt([round(from[0]), round(from[1])])} arc[start angle=${start}, end angle=${stop}, radius=${round(r)}];`;
+    }
+    case "text": return `\\node${opts()} at ${ref(a)} {Text};`;
+    case "box": return `\\node${opts("draw, rounded corners=2pt")} (${name}) at ${pt(a.point)} {Text};`;
+    case "round": return `\\node${opts("draw, circle")} (${name}) at ${pt(a.point)} {Text};`;
+    case "dot": return `\\fill${opts()} ${ref(a)} circle (1.5pt);`;
+  }
+}
+
+/** A node name not yet used in the picture: `n1`, `n2`, … or `base-2`, `base-3`, … */
+export function freshName(taken: Iterable<string>, base = "n"): string {
+  const used = new Set(taken);
+  for (let k = base === "n" ? 1 : 2; ; k++) {
+    const name = base === "n" ? `n${k}` : `${base}-${k}`;
+    if (!used.has(name)) return name;
   }
 }
 
@@ -432,4 +609,46 @@ export function appendStatement(picture: string, scan: PictureScan, statement: s
     ? /^[ \t]*/.exec(prevLine)![0]
     : `${before}  `;
   return { at: lineStart, text: `${indent}${statement}\n` };
+}
+
+// ---------- labels on lines ----------
+/** The first `node[…] {…}` on a path statement (a label on a line): its options and text, relative to the statement. */
+export function lineLabel(statement: string): { optionsFrom: number; optionsTo: number; textFrom: number; textTo: number } | null {
+  const m = /(?:--|\bto\b(?:\[[^\]]*\])?)\s*node\s*(\[[^\]]*\])?\s*\{/.exec(statement);
+  if (!m) return null;
+  const open = m.index + m[0].length - 1;
+  let depth = 0;
+  for (let i = open; i < statement.length; i++) {
+    if (statement[i] === "\\") i++;
+    else if (statement[i] === "{") depth++;
+    else if (statement[i] === "}" && --depth === 0) {
+      const optionsFrom = m[1] ? m.index + m[0].indexOf(m[1]) : m.index + m[0].indexOf("node") + 4;
+      return { optionsFrom, optionsTo: optionsFrom + (m[1]?.length ?? 0), textFrom: open + 1, textTo: i };
+    }
+  }
+  return null;
+}
+
+/** The statement with its line label set to `text` (added after the first `--` when there is
+ *  none, removed when `text` is empty), placed at `place` (`above`, `below`, …). */
+export function withLineLabel(statement: string, text: string, place?: string): string {
+  const label = lineLabel(statement);
+  if (label) {
+    if (!text.trim()) {
+      // drop ` node[…] {…}` back to the `--`
+      const start = statement.lastIndexOf("node", label.optionsFrom);
+      return statement.slice(0, start).replace(/\s+$/, " ") + statement.slice(label.textTo + 1).replace(/^\s+/, "");
+    }
+    let out = statement.slice(0, label.textFrom) + text + statement.slice(label.textTo);
+    if (place) {
+      // only where it sits changes; its other options (font=…) stay
+      const kept = parseOptions(statement.slice(label.optionsFrom, label.optionsTo)).filter((e) => groupOf(e, new Set()) !== "place");
+      out = out.slice(0, label.optionsFrom) + writeOptions(["midway", ...place.split(/,\s*/), ...kept]) + out.slice(label.optionsTo);
+    }
+    return out;
+  }
+  if (!text.trim()) return statement;
+  const at = statement.indexOf("--");
+  if (at < 0) return statement;
+  return `${statement.slice(0, at + 2)} node[midway, ${place ?? "above"}] {${text}}${statement.slice(at + 2)}`;
 }
