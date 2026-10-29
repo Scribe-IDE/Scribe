@@ -2,16 +2,14 @@
 
 Each version's notes become its release notes on GitHub.
 
-## Unreleased
-
-- An assistant with the model of your choice (Anthropic, OpenAI, Gemini, OpenAI-compatible, or
-  Ollama on this computer): a chat that knows the paper, edits to the selection reviewed word by
-  word, fixes for compile errors, and suggestions as you type. Keys stay in the system keychain.
-
 ## 1.1.0
 
 The first release.
 
+- An assistant with the model of your choice (Claude, GPT, Gemini, any OpenAI-compatible
+  service, or Ollama on this computer): a chat that knows the paper, edits to the selection
+  reviewed word by word, fixes for compile errors, and suggestions as you type. Keys stay in the
+  system keychain.
 - A LaTeX editor that knows the paper: completion for labels, citations, figures and notebook
   values; hover cards for `\ref`, `\cite` and `\nbval`; writing checks with fixes; snippets; a
   visual equation editor; tables edited as a grid.
