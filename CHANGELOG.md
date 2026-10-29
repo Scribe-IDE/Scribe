@@ -2,7 +2,7 @@
 
 Each version's notes become its release notes on GitHub.
 
-## Unreleased
+## 1.2.0
 
 - Track changes and comments, kept in the source with the `changes` package: typing and deleting
   are marked as you go, comments sit in the margin of the PDF, and the Review panel accepts or
