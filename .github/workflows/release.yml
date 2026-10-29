@@ -47,22 +47,27 @@ jobs:
 
       - run: npm ci
 
-      # A wrong key fails deep inside the build; check it first and say what's wrong.
+      # A wrong key fails deep inside the build; check it first and say what's wrong. A pasted
+      # secret often ends in a newline, so the key is trimmed and passed on to the later steps.
       - name: Check the signing key
         shell: bash
         env:
           KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         run: |
+          KEY=$(printf %s "$KEY" | tr -d '\n\r ')
           if [ -z "$KEY" ]; then
             echo "::error::The TAURI_SIGNING_PRIVATE_KEY secret is missing or empty. Paste the whole contents of ~/.tauri/scribe.key into it."
             exit 1
           fi
+          echo "::add-mask::$KEY"
           echo check > key-check.txt
-          if ! out=$(npx tauri signer sign -k "$KEY" -p "" key-check.txt 2>&1); then
-            echo "::error::The signing key doesn't work: $(echo "$out" | tail -2 | tr '\n' ' '). The secret must be the contents of ~/.tauri/scribe.key (not the .pub file), with nothing added."
+          if ! out=$(npx tauri signer sign -k "$KEY" key-check.txt 2>&1); then
+            echo "::error::The signing key doesn't work: $(echo "$out" | tail -2 | tr '\n' ' '). The secret must be the contents of ~/.tauri/scribe.key (not the .pub file)."
             exit 1
           fi
           rm -f key-check.txt key-check.txt.sig
+          echo "TAURI_SIGNING_PRIVATE_KEY=$KEY" >> "$GITHUB_ENV"
 
       - name: Notes from the changelog
         id: notes
@@ -78,8 +83,8 @@ jobs:
       - uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # the key has no password (GitHub can't hold an empty secret, so none is passed)
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          # the key comes trimmed from the check above; it has no password
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
         with:
           tagName: ${{ github.ref_name }}
           releaseName: Scribe ${{ github.ref_name }}
