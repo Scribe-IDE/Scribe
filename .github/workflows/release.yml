@@ -69,6 +69,46 @@ jobs:
           rm -f key-check.txt key-check.txt.sig
           echo "TAURI_SIGNING_PRIVATE_KEY=$KEY" >> "$GITHUB_ENV"
 
+      # Signed and notarized by Apple when the six APPLE_* secrets are set (a Developer ID
+      # certificate as base64 .p12, its password, the identity, the Apple ID with an app-specific
+      # password, and the team). Without them the app is built as before, and macOS asks the user
+      # to confirm it the first time.
+      - name: Apple signing
+        if: matrix.platform == 'macos-latest'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -z "$APPLE_CERTIFICATE" ]; then
+            echo "::notice::No APPLE_CERTIFICATE secret: the macOS app is not signed with a Developer ID or notarized."
+            exit 0
+          fi
+          missing=""
+          for name in APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID; do
+            [ -n "${!name}" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::APPLE_CERTIFICATE is set but these secrets are missing:$missing"
+            exit 1
+          fi
+          # a pasted base64 certificate often carries line breaks
+          cert=$(printf %s "$APPLE_CERTIFICATE" | tr -d '\n\r ')
+          echo "::add-mask::$cert"
+          {
+            echo "APPLE_CERTIFICATE=$cert"
+            echo "APPLE_CERTIFICATE_PASSWORD=$APPLE_CERTIFICATE_PASSWORD"
+            echo "APPLE_SIGNING_IDENTITY=$APPLE_SIGNING_IDENTITY"
+            echo "APPLE_ID=$APPLE_ID"
+            echo "APPLE_PASSWORD=$APPLE_PASSWORD"
+            echo "APPLE_TEAM_ID=$APPLE_TEAM_ID"
+          } >> "$GITHUB_ENV"
+          echo "::notice::Signing with $APPLE_SIGNING_IDENTITY and notarizing with Apple."
+
       - name: Notes from the changelog
         id: notes
         shell: bash
@@ -92,3 +132,12 @@ jobs:
           releaseDraft: true
           prerelease: ${{ contains(github.ref_name, '-') }}
           args: ${{ matrix.args }} --config src-tauri/tauri.release.conf.json
+
+      # When signed, check that macOS accepts the app the way a downloaded copy is checked.
+      - name: Check the macOS signature
+        if: matrix.platform == 'macos-latest' && env.APPLE_SIGNING_IDENTITY != ''
+        run: |
+          app=src-tauri/target/universal-apple-darwin/release/bundle/macos/Scribe.app
+          codesign --verify --deep --strict --verbose=2 "$app"
+          spctl --assess --type exec --verbose=2 "$app"
+          xcrun stapler validate "$app"

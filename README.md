@@ -258,7 +258,13 @@ Installers for macOS, Windows and Linux are attached to each
 [release](https://github.com/Scribe-IDE/Scribe/releases/latest). Scribe updates itself from
 there: when a new version is out, it offers to install it.
 
-The macOS app isn't notarized by Apple yet, so the first time, open it with right-click > Open.
+The macOS app isn't notarized by Apple yet, so the first time macOS says it can't verify Scribe.
+Press Done, open System Settings > Privacy & Security, and press Open Anyway at the bottom; Scribe
+opens normally from then on. Or, in Terminal:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/Scribe.app
+```
 
 ## Building from source
 
