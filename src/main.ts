@@ -12,6 +12,7 @@ import { COMMAND_ICONS, ICONS } from "./icons";
 import { createMenubar, MenuEntry, openContextMenu } from "./menubar";
 import { closePalette, openPalette } from "./palette";
 import { compile, runNotebook, saveFile } from "./build";
+import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
 import { $, baseName, current, logEl, logPanel, mainFile, PAGE, root, setLogView, setStatus, showLog, statusEl, VIEWABLE } from "./core";
@@ -255,6 +256,11 @@ register(
 );
 
 for (const command of allCommands()) command.icon = COMMAND_ICONS[command.id];
+
+// The version on the welcome screen and in About, from the app itself (tauri.conf.json)
+getVersion().then((v) => {
+  for (const el of document.querySelectorAll(".app-version")) el.textContent = v;
+}).catch(() => {});
 
 // A zip a publisher can compile: one .tex with everything inlined, the figures, the bibliography.
 async function exportForSubmission() {
