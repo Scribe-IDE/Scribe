@@ -1,5 +1,7 @@
 // Starting points for New Project. Each is a set of files written into the chosen folder.
 
+import { localKeys } from "./core";
+
 export interface Template {
   name: string;
   /** One line shown beside the name when choosing. */
@@ -38,7 +40,7 @@ const BIB = `@article{knuth1984,
 }
 `;
 
-const LECTURE = String.raw`# Lecture 1: Limits
+const LECTURE = localKeys(String.raw`# Lecture 1: Limits
 
 Notes render as you write: maths shows typeset as soon as the cursor leaves it.
 Press ⌥⌘N to jot something down without leaving this note, and ⌘V to paste a photo of the board.
@@ -60,14 +62,14 @@ $$
 
 - [ ] Exercise sheet 1, questions 1 to 4
 - [x] Read chapter 2 of the course book
-`;
+`);
 
 export const TEMPLATES: Template[] = [
   {
     name: "Lecture notes",
     detail: "Markdown notes with maths that render as you type; no paper needed",
     files: {
-      "notes/Index.md": "# Course notes\n\n- [[Lecture 1]]\n- [[Inbox]] for quick notes (⌥⌘N)\n",
+      "notes/Index.md": localKeys("# Course notes\n\n- [[Lecture 1]]\n- [[Inbox]] for quick notes (⌥⌘N)\n"),
       "notes/Lecture 1.md": LECTURE,
       "notes/Inbox.md": "# Inbox\n",
     },

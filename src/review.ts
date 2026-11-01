@@ -2,7 +2,7 @@
 // with their accept and reject buttons, then the notes left for later (% TODO, % FIXME, % NOTE,
 // \todo{...}), gathered across every .tex file.
 import { invoke } from "@tauri-apps/api/core";
-import { $, current, root } from "./core";
+import { $, current, localKeys, root } from "./core";
 import { view } from "./editor";
 import { openFile, revealLine } from "./project";
 import { NoteItem, refreshIndex, scanNotes } from "./texindex";
@@ -97,7 +97,7 @@ export async function renderReview() {
 
   const frag = document.createDocumentFragment();
   if (!found.length) {
-    frag.appendChild(el("div", "empty", "Nothing to review. Turn on Review > Track Changes to mark your edits, add a comment with ⌥⌘M, or write % TODO: … in the paper."));
+    frag.appendChild(el("div", "empty", localKeys("Nothing to review. Turn on Review > Track Changes to mark your edits, add a comment with ⌥⌘M, or write % TODO: … in the paper.")));
   }
   const changes = found.filter((f) => f.marks.length);
   if (changes.length) frag.appendChild(el("h3", "gallery-heading", "Changes and comments"));

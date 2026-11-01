@@ -102,3 +102,21 @@ export const svg = (body: string) =>
 export const PAGE = '<path d="M4 1.75h5.25l3.25 3.25v8.75a.5.5 0 01-.5.5H4a.5.5 0 01-.5-.5V2.25a.5.5 0 01.5-.5z"/><path d="M9.25 1.75V5h3.25"/>';
 
 export const clamp = (v: number, lo: number, hi: number) => Math.min(Math.max(v, lo), Math.max(lo, hi));
+
+/** Shortcuts are written the Mac way (⌥⌘N); elsewhere they read Ctrl+Alt+N. */
+// In `tauri dev`, localStorage `scribe.platform` = "pc" shows the Windows/Linux labels on a Mac.
+const pcPreview = import.meta.env.DEV && (() => { try { return localStorage.getItem("scribe.platform") === "pc"; } catch { return false; } })();
+export const isMac = /Mac/.test(navigator.platform || navigator.userAgent) && !pcPreview;
+
+const MOD_NAME: Record<string, string> = { "⌃": "Ctrl", "⌘": "Ctrl", "⌥": "Alt", "⇧": "Shift" };
+const KEY_NAME: Record<string, string> = { "↵": "Enter", "⎋": "Esc", "⌫": "Backspace", "⇥": "Tab", "-click": "click" };
+
+/** Text that mentions shortcuts, in this platform's words: "⇧⌘P" → "Ctrl+Shift+P" off a Mac. */
+export function localKeys(text: string): string {
+  if (isMac) return text;
+  return text.replace(/([⌃⌥⇧⌘]+)(-click|[^\s⌃⌥⇧⌘)]?)/g, (_, mods: string, key: string) => {
+    const names = ["Ctrl", "Alt", "Shift"].filter((name) => [...mods].some((g) => MOD_NAME[g] === name));
+    if (key) names.push(KEY_NAME[key] ?? key);
+    return names.join("+");
+  });
+}

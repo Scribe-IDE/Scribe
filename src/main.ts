@@ -15,7 +15,7 @@ import { compile, runNotebook, saveFile } from "./build";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { save } from "@tauri-apps/plugin-dialog";
-import { $, baseName, current, logEl, logPanel, mainFile, PAGE, root, setLogView, setStatus, showLog, statusEl, VIEWABLE } from "./core";
+import { $, baseName, current, isMac, localKeys, logEl, logPanel, mainFile, PAGE, root, setLogView, setStatus, showLog, statusEl, VIEWABLE } from "./core";
 import { view } from "./editor";
 import { sizes, togglePane } from "./layout";
 import { activeCell, cellRunners, isNotebook, restartKernel } from "./notebook";
@@ -44,6 +44,7 @@ import { previewTikz } from "./tikz";
 import { PICTURE_FILE } from "./tikzsource";
 import { insertTikzPicture } from "./tikzwrite";
 import { startTour } from "./tour";
+import { showWhatsNew, whatsNewAfterUpdate } from "./whatsnew";
 import { copyAsLatex, exportNotePdf, isNote, newNote, notePrefs, quickNote, refreshNotes, todaysNote } from "./notes";
 import { activeEditor, closeSide, openToSide, sideOpen } from "./split";
 import { loadProfile } from "./profile";
@@ -238,6 +239,7 @@ register(
 
   { id: "help.shortcuts", group: "Help", title: "Keyboard Shortcuts", run: commandPalette },
   { id: "help.updates", group: "Help", title: "Check for Updates…", run: () => checkForUpdates() },
+  { id: "help.whatsnew", group: "Help", title: "What's New", run: () => showWhatsNew() },
   { id: "help.tour", group: "Help", title: "Take the Tour", enabled: hasProject, run: startTour },
   { id: "edit.table", group: "Insert", title: "Table…", enabled: () => !!activeEditor()?.dom.dataset.path?.endsWith(".tex"), run: editTable },
   { id: "edit.tikz", group: "Edit", title: "Preview TikZ", keys: "Mod-Alt-k", enabled: () => PICTURE_FILE.test(activeEditor()?.dom.dataset.path ?? ""), run: () => previewTikz(activeEditor()) },
@@ -257,10 +259,25 @@ register(
 
 for (const command of allCommands()) command.icon = COMMAND_ICONS[command.id];
 
+// index.html writes shortcuts the Mac way; elsewhere they become Ctrl+…, and the title bar has
+// no traffic lights to make room for.
+document.body.classList.toggle("mac", isMac);
+if (!isMac) {
+  const glyph = /[⌃⌥⇧⌘]/;
+  for (const el of document.querySelectorAll<HTMLElement>("[title]")) {
+    if (glyph.test(el.title)) el.title = localKeys(el.title);
+  }
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (glyph.test(node.nodeValue ?? "")) node.nodeValue = localKeys(node.nodeValue!);
+  }
+}
+
 // The version on the welcome screen and in About, from the app itself (tauri.conf.json)
 getVersion().then((v) => {
   for (const el of document.querySelectorAll(".app-version")) el.textContent = v;
 }).catch(() => {});
+whatsNewAfterUpdate().catch(() => {});
 
 // A zip a publisher can compile: one .tex with everything inlined, the figures, the bibliography.
 async function exportForSubmission() {
@@ -411,7 +428,7 @@ createMenubar($("menubar"), [
     icon: MENU_ICON.notes,
     entries: ["file.newNote", "file.todaysNote", "file.quickNote", "file.notePdf", "-", "file.review", "file.anki"],
   },
-  { title: "Help", icon: MENU_ICON.help, entries: ["help.shortcuts", "help.tour", "-", "help.updates", "help.about"] },
+  { title: "Help", icon: MENU_ICON.help, entries: ["help.shortcuts", "help.tour", "-", "help.whatsnew", "help.updates", "help.about"] },
 ]);
 
 // ---------- wire up ----------

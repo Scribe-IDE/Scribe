@@ -1,6 +1,8 @@
 // First-run tour: a few steps pointing at the parts of Scribe that work differently from other
 // LaTeX editors. Shown once, the first time a project opens; Help > Take the Tour shows it again.
 
+import { localKeys } from "./core";
+
 interface Step { target: string; title: string; body: string; }
 
 const STEPS: Step[] = [
@@ -86,7 +88,7 @@ function show(i: number) {
   title.textContent = step.title;
   const body = document.createElement("p");
   body.className = "tour-body";
-  body.textContent = step.body;
+  body.textContent = localKeys(step.body);
   const actions = document.createElement("div");
   actions.className = "tour-actions";
   const skip = document.createElement("button");

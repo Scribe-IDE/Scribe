@@ -2,7 +2,7 @@
 // references, the open file, the selection). LaTeX in a reply can go straight into the file.
 import { EditorView } from "@codemirror/view";
 import { invoke } from "@tauri-apps/api/core";
-import { $, current, mainFile, root, setStatus } from "./core";
+import { $, current, localKeys, mainFile, root, setStatus } from "./core";
 import { aiConfig, aiListeners, aiReady, aiStream, PROVIDERS, type ChatMessage } from "./ai";
 import { renderMarkdown } from "./markdown";
 import { activeEditor } from "./split";
@@ -91,7 +91,7 @@ function addCodeActions(bubble: HTMLElement) {
         const at = editor.state.selection.main.head;
         editor.dispatch({ changes: { from: at, insert: code.replace(/\n$/, "") }, userEvent: "input" });
       }),
-      button("Replace Selection", "Put it in place of the selected text (⌘Z undoes it)", (editor) => {
+      button("Replace Selection", localKeys("Put it in place of the selected text (⌘Z undoes it)"), (editor) => {
         const sel = editor.state.selection.main;
         if (sel.empty) return setStatus("Select the text to replace first");
         editor.dispatch({ changes: { from: sel.from, to: sel.to, insert: code.replace(/\n$/, "") }, userEvent: "input" });

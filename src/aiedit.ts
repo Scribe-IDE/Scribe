@@ -2,7 +2,7 @@
 // word-by-word comparison, and nothing changes until it is accepted. Used for the selection
 // (rewrite, shorten, fix grammar, an instruction of your own) and for compile errors.
 import type { EditorView } from "@codemirror/view";
-import { current, setStatus } from "./core";
+import { current, localKeys, setStatus } from "./core";
 import { aiReady, aiStream, unfence, type AiRequest } from "./ai";
 import type { Problem } from "./diagnostics";
 import { view } from "./editor";
@@ -86,7 +86,7 @@ async function review(job: Job) {
     job.editor.dispatch({ changes: { from: job.from, to: job.to, insert: proposed }, userEvent: "input" });
     closeSide();
     job.editor.focus();
-    setStatus("Done. ⌘Z undoes it.", "ok");
+    setStatus(localKeys("Done. ⌘Z undoes it."), "ok");
   });
   const again = button("Try Again", "btn", () => run());
   const discard = button("Discard", "btn", () => {

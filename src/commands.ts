@@ -1,6 +1,8 @@
 // Command registry: the menu bar, the command palette and the global shortcuts all read
 // from here, so a command's title, shortcut and enabled state are defined exactly once.
 
+import { isMac } from "./core";
+
 export type CommandGroup = "File" | "Edit" | "Insert" | "View" | "Build" | "Review" | "Notes" | "Help";
 
 export interface Command {
@@ -43,12 +45,17 @@ const KEY_LABEL: Record<string, string> = {
   arrowup: "↑", arrowdown: "↓", arrowleft: "←", arrowright: "→",
   minus: "-", // spelled out in combos because "-" is the separator
 };
+const PC_KEY_LABEL: Record<string, string> = { enter: "Enter", escape: "Esc", backspace: "Backspace", tab: "Tab" };
 
-/** "Mod-Shift-p" → "⇧⌘P" */
+/** "Mod-Shift-p" → "⇧⌘P" on a Mac, "Ctrl+Shift+P" elsewhere */
 export function formatKeys(keys: string): string {
   const parts = keys.split("-");
   const key = parts.pop()!.toLowerCase();
   const mods = new Set(parts.map((p) => p.toLowerCase()));
+  if (!isMac) {
+    const names = [mods.has("ctrl") || mods.has("mod") ? "Ctrl" : "", mods.has("alt") ? "Alt" : "", mods.has("shift") ? "Shift" : ""];
+    return [...names.filter(Boolean), PC_KEY_LABEL[key] ?? KEY_LABEL[key] ?? key.toUpperCase()].join("+");
+  }
   return (
     (mods.has("ctrl") ? "⌃" : "") +
     (mods.has("alt") ? "⌥" : "") +
@@ -65,7 +72,8 @@ const normalize = (keys: string) => {
 };
 
 function comboOf(e: KeyboardEvent): string | null {
-  if (!(e.metaKey || e.ctrlKey)) return null; // every global shortcut uses ⌘/Ctrl
+  // Every global shortcut uses ⌘ (or Ctrl) on a Mac and Ctrl elsewhere, where the Windows key belongs to the system.
+  if (!(isMac ? e.metaKey || e.ctrlKey : e.ctrlKey)) return null;
   let key = e.key.toLowerCase();
   // ⌥ changes the character on a Mac (⌥N types ˜), so with ⌥ held go by the physical key.
   if (e.altKey && /^Key[A-Z]$/.test(e.code)) key = e.code.slice(3).toLowerCase();

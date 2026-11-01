@@ -392,6 +392,24 @@
     </footer>
   </dialog>
 
+  <dialog id="whatsnew" aria-labelledby="whatsnew-title">
+    <div class="about-body" tabindex="-1" autofocus>
+      <header class="about-head">
+        <span class="whatsnew-mark" aria-hidden="true"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 3.5l1.9 4.6 4.6 1.9-4.6 1.9-1.9 4.6-1.9-4.6L4 10l4.6-1.9z"/><path d="M17.5 14.5l.85 2.15 2.15.85-2.15.85-.85 2.15-.85-2.15-2.15-.85 2.15-.85z" fill="currentColor"/><path d="M18 3.75v3M16.5 5.25h3"/></svg></span>
+        <div>
+          <h2 id="whatsnew-title">What's new</h2>
+          <p class="about-version">Scribe <span id="whatsnew-version"></span></p>
+        </div>
+        <button id="whatsnew-close" class="icon-btn" aria-label="Close"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button>
+      </header>
+      <div id="whatsnew-notes"></div>
+    </div>
+    <footer class="about-foot">
+      <span>Every version's notes are on GitHub.</span>
+      <button id="whatsnew-ok" class="btn btn-primary">Continue</button>
+    </footer>
+  </dialog>
+
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

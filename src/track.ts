@@ -4,7 +4,7 @@
 import { Annotation, EditorState, StateField, Transaction, type Extension, type TransactionSpec } from "@codemirror/state";
 import { Decoration, EditorView, type DecorationSet } from "@codemirror/view";
 import { invoke } from "@tauri-apps/api/core";
-import { $, mainFile, root, setStatus } from "./core";
+import { $, localKeys, mainFile, root, setStatus } from "./core";
 import { promptInput } from "./palette";
 import { profile } from "./profile";
 import { activeEditor } from "./split";
@@ -190,7 +190,7 @@ export function resolveFile(accept: boolean) {
   const count = scanMarks(doc).length;
   if (!count) return setStatus("No changes or comments in this file");
   editor.dispatch({ changes: { from: 0, to: doc.length, insert: resolveAll(doc, accept) }, annotations: own.of(true), userEvent: "input" });
-  setStatus(`${accept ? "Accepted" : "Rejected"} ${count} change${count === 1 ? "" : "s"} and comments. ⌘Z undoes it.`, "ok");
+  setStatus(localKeys(`${accept ? "Accepted" : "Rejected"} ${count} change${count === 1 ? "" : "s"} and comments. ⌘Z undoes it.`), "ok");
 }
 
 /** The cursor to the next change or comment after it (round to the first). */

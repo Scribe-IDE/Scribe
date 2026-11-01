@@ -103,6 +103,7 @@ export const COMMAND_ICONS: Record<string, string> = {
   "build.compare": icon('<path d="M5 2.25v11.5M11 2.25v11.5"/><path d="M2.5 5.5h5M8.5 10.5h5M11 8v5"/>'),
   "file.response": icon('<path d="M2.5 3.25h11v7.5h-6.5L4 13.25v-2.5H2.5z"/><path d="M5.25 6h5.5M5.25 8h3.5"/>'),
   "build.quoteChange": icon('<path d="M3 6.5c0-1.5 1-2.75 2.5-3M3 6.5h2.5v3H3zM9 6.5c0-1.5 1-2.75 2.5-3M9 6.5h2.5v3H9z"/>'),
+  "help.whatsnew": icon('<path d="M8 1.75l1.6 3.9 4.15.35-3.15 2.75.95 4.1L8 10.65l-3.55 2.2.95-4.1L2.25 6l4.15-.35z"/>'),
   "help.updates": icon('<path d="M8 2.75v7.5M5 7.25l3 3 3-3"/><path d="M2.75 10.5v1.75a1 1 0 001 1h8.5a1 1 0 001-1V10.5"/>'),
   "edit.tikz": icon('<circle cx="4.5" cy="11.5" r="1.75"/><circle cx="11.5" cy="4.5" r="1.75"/><path d="M5.75 10.25l4.5-4.5M2.25 2.75v10.5a.5.5 0 00.5.5h10.5"/>'),
   "edit.tikzInsert": icon('<path d="M2.75 13.25l4-6 3 3.5 3.5-6"/><path d="M11 2.25v4M9 4.25h4"/>'),

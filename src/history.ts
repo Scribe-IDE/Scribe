@@ -3,7 +3,7 @@
 // restore it with one click; restoring is an ordinary edit, so ⌘Z takes it back.
 import { ask } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
-import { $, changeListeners, current, root, setStatus } from "./core";
+import { $, changeListeners, current, localKeys, root, setStatus } from "./core";
 import { diffView } from "./git";
 import { activeEditor, showInSide } from "./split";
 
@@ -50,7 +50,7 @@ async function showChanges(rel: string, version: Version) {
 
 async function restore(rel: string, version: Version) {
   const when = new Date(version.id * 1000);
-  const sure = await ask(`Replace ${rel} with the version from ${dayLabel(when).toLowerCase()} at ${time(when)}?\n\nThe current text is kept as a version too, and ⌘Z undoes this.`, {
+  const sure = await ask(localKeys(`Replace ${rel} with the version from ${dayLabel(when).toLowerCase()} at ${time(when)}?\n\nThe current text is kept as a version too, and ⌘Z undoes this.`), {
     title: "Restore this version",
     kind: "warning",
     okLabel: "Restore",

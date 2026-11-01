@@ -10,7 +10,7 @@ import { EditorSelection, EditorState, Extension, Prec, Range, StateEffect, Stat
 import { Decoration, DecorationSet, EditorView, keymap, WidgetType } from "@codemirror/view";
 import { syntaxTree } from "@codemirror/language";
 import katex from "katex";
-import { $, baseName, changeListeners, current, root, setStatus } from "./core";
+import { $, baseName, changeListeners, current, localKeys, root, setStatus } from "./core";
 import { promptInput } from "./palette";
 import { parseLog } from "./diagnostics";
 import { setPaperless } from "./layout";
@@ -298,24 +298,24 @@ function decorate(state: EditorState, path: string): DecorationSet {
     if (taken(m.index!)) continue;
     const from = m.index!;
     const to = from + m[0].length;
-    out.push(mark("cm-md-wikilink", { "data-note": m[1].trim(), title: `⌘-click to open ${m[1].trim()}` }).range(from, to));
+    out.push(mark("cm-md-wikilink", { "data-note": m[1].trim(), title: localKeys(`⌘-click to open ${m[1].trim()}`) }).range(from, to));
     // [[name]] reads as "name", and [[name|label]] as "label"
     quiet(from, m[2] ? from + 2 + m[1].length + 1 : from + 2);
     quiet(to - 2, to);
   }
   for (const m of text.matchAll(/(?<![\w@\\])@([A-Za-z][\w:.-]*\w)/g)) {
     if (taken(m.index!)) continue;
-    out.push(mark("cm-md-cite", { "data-key": m[1], title: `⌘-click for your notes on ${m[1]}` }).range(m.index!, m.index! + m[0].length));
+    out.push(mark("cm-md-cite", { "data-key": m[1], title: localKeys(`⌘-click for your notes on ${m[1]}`) }).range(m.index!, m.index! + m[0].length));
   }
   for (const m of text.matchAll(TAG)) {
     if (taken(m.index!)) continue;
     const line = state.doc.lineAt(m.index!);
     if (line.from === m.index && /^#+\s/.test(line.text)) continue;
-    out.push(mark("cm-md-tag", { "data-tag": m[1], title: `⌘-click for every note tagged #${m[1]}` }).range(m.index!, m.index! + m[0].length));
+    out.push(mark("cm-md-tag", { "data-tag": m[1], title: localKeys(`⌘-click for every note tagged #${m[1]}`) }).range(m.index!, m.index! + m[0].length));
   }
   for (const m of text.matchAll(/(?<!!)\[([^\]\n]+)\]\(([^)\s]+)\)/g)) {
     if (taken(m.index!)) continue;
-    out.push(mark("cm-md-url", { "data-href": m[2], title: `⌘-click to open ${m[2]}` }).range(m.index!, m.index! + m[0].length));
+    out.push(mark("cm-md-url", { "data-href": m[2], title: localKeys(`⌘-click to open ${m[2]}`) }).range(m.index!, m.index! + m[0].length));
   }
   return Decoration.set(out, true);
 }
@@ -934,10 +934,10 @@ export async function renderNotes() {
   };
   tools.append(
     button("New note", "Start a note", newNote),
-    button("Today", "Open today's note (⌥⌘T)", todaysNote),
-    button("Quick note", "Jot something into the inbox (⌥⌘N)", quickNote),
+    button("Today", localKeys("Open today's note (⌥⌘T)"), todaysNote),
+    button("Quick note", localKeys("Jot something into the inbox (⌥⌘N)"), quickNote),
   );
-  if (isNote(current)) tools.append(button("Sketch", "Draw a diagram into this note (⌥⌘D)", newSketch), button("PDF", "Typeset this note as a PDF", exportNotePdf));
+  if (isNote(current)) tools.append(button("Sketch", localKeys("Draw a diagram into this note (⌥⌘D)"), newSketch), button("PDF", "Typeset this note as a PDF", exportNotePdf));
   // Revision: how many cards are waiting, from the Q: / A: lines in the notes shown
   const review = button("Review", "Review the cards that are due (Q: and A: lines in notes)", () => reviewCards(activeTag ? tags.get(activeTag) : undefined));
   review.hidden = true;
@@ -1002,7 +1002,7 @@ export async function renderNotes() {
     if (!shown.length) {
       const none = document.createElement("div");
       none.className = "empty";
-      none.textContent = notes.length ? "No note matches." : "No notes yet. Start one with New note, or press ⌥⌘T for today's.";
+      none.textContent = notes.length ? "No note matches." : localKeys("No notes yet. Start one with New note, or press ⌥⌘T for today's.");
       list.appendChild(none);
     }
 
@@ -1081,7 +1081,7 @@ export async function renderNotes() {
   ];
   for (const [keys, what] of shortcuts) {
     const dt = document.createElement("dt");
-    dt.textContent = keys;
+    dt.textContent = localKeys(keys);
     const dd = document.createElement("dd");
     dd.textContent = what;
     table.append(dt, dd);

@@ -2,7 +2,7 @@
 // pen pressure, the result is saved as a PNG next to the note (images/sketch-….png) and shown in
 // it. Double-clicking a sketch in a note opens it again to draw more.
 import { invoke } from "@tauri-apps/api/core";
-import { $, baseName, root, setStatus } from "./core";
+import { $, baseName, localKeys, root, setStatus } from "./core";
 import { activeEditor } from "./split";
 
 interface Point { x: number; y: number; p: number; }
@@ -117,7 +117,7 @@ function tools() {
   const undo = document.createElement("button");
   undo.className = "btn";
   undo.textContent = "Undo";
-  undo.title = "⌘Z";
+  undo.title = localKeys("⌘Z");
   undo.onclick = () => { const s = strokes.pop(); if (s) undone.push(s); redraw(); };
   const clear = document.createElement("button");
   clear.className = "btn";

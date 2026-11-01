@@ -1,7 +1,7 @@
 // Open-file tabs. Each text tab keeps its own editor state (undo history, cursor, scroll)
 // while another file is showing.
 import { EditorState } from "@codemirror/state";
-import { $, assignDirty, baseName, changeListeners, current, dirty, renderCrumb, setCurrent } from "./core";
+import { $, assignDirty, baseName, changeListeners, current, dirty, localKeys, renderCrumb, setCurrent } from "./core";
 import { view } from "./editor";
 import { ICONS } from "./icons";
 import { leaveNotebook } from "./notebook";
@@ -77,7 +77,7 @@ export function renderTabs() {
     const close = document.createElement("button");
     close.className = "tab-close";
     close.innerHTML = ICONS.close;
-    close.title = "Close (⌘W)";
+    close.title = localKeys("Close (⌘W)");
     close.setAttribute("aria-label", `Close ${name}`);
     close.onclick = () => closeTab(rel);
 
