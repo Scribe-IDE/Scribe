@@ -4,7 +4,7 @@ import {
   crosshairCursor, drawSelection, dropCursor, gutter, GutterMarker, highlightActiveLine, highlightActiveLineGutter,
   highlightSpecialChars, keymap, lineNumbers, rectangularSelection, tooltips,
 } from "@codemirror/view";
-import { Compartment, EditorState, Extension } from "@codemirror/state";
+import { Compartment, EditorState, Extension, Prec } from "@codemirror/state";
 import {
   bracketMatching, defaultHighlightStyle, foldGutter, foldKeymap, HighlightStyle, indentOnInput, StreamLanguage,
   syntaxHighlighting,
@@ -355,10 +355,11 @@ export function createEditorState(doc: string, path: string, hooks: EditorHooks 
       EditorView.editorAttributes.of({ "data-path": path }), // lets helpers know what kind of file this is
       themeConf.of(editorTheme(editorPrefs.dark)),
       EditorView.lineWrapping,
-      keymap.of([
+      // Above the default keymap, whose Mod-Enter would insert a blank line instead.
+      Prec.highest(keymap.of([
         { key: "Mod-s", preventDefault: true, run: () => (hooks.onSave(), true) },
         { key: "Mod-Enter", preventDefault: true, run: () => (compile(), true) },
-      ]),
+      ])),
       EditorView.updateListener.of((u) => {
         if (u.docChanged) {
           hooks.onChange();
