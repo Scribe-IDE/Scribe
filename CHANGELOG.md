@@ -2,6 +2,15 @@
 
 Each version's notes become its release notes on GitHub.
 
+## 1.2.2
+
+- The compile shortcut works with the cursor in the editor again, instead of adding a blank line.
+- On Windows and Linux, shortcuts are shown as Ctrl+… instead of with the Mac's symbols, and the
+  title bar no longer leaves room for window buttons that aren't there.
+- Linux AppImage: notebooks run with your own Python again, instead of stopping at
+  "No module named 'encodings'".
+- After an update, Scribe shows what changed. Help > What's New shows it again.
+
 ## 1.2.1
 
 - macOS: the app is signed as a whole, so a downloaded copy can be opened with Open Anyway in
