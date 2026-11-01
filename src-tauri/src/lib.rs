@@ -2430,6 +2430,26 @@ fn adopt_shell_path() {
 #[cfg(not(unix))]
 fn adopt_shell_path() {}
 
+/// The AppImage launcher points Python and Perl at the (empty) copies inside the image, so the
+/// user's own Python dies with "No module named 'encodings'" and latexmk can pick up the wrong
+/// modules. Drop the entries under the mount before any tool is started; the user's own stay.
+/// LD_LIBRARY_PATH is left alone: the bundled WebKit's helper processes need it.
+fn leave_appimage_env() {
+    let Ok(appdir) = std::env::var("APPDIR") else { return };
+    if appdir.is_empty() || std::env::var_os("APPIMAGE").is_none() {
+        return;
+    }
+    for var in ["PYTHONHOME", "PYTHONPATH", "PERLLIB", "PERL5LIB"] {
+        let Ok(value) = std::env::var(var) else { continue };
+        let kept: Vec<&str> = value.split(':').filter(|p| !p.is_empty() && !p.starts_with(&appdir)).collect();
+        if kept.is_empty() {
+            std::env::remove_var(var);
+        } else {
+            std::env::set_var(var, kept.join(":"));
+        }
+    }
+}
+
 #[derive(Serialize)]
 struct Tools {
     /// The LaTeX engine that compile will use, if any.
@@ -2584,6 +2604,7 @@ fn pty_kill() -> Result<(), String> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    leave_appimage_env();
     adopt_shell_path();
     add_tools_dir_to_path();
     // `scribe --check-tools` prints what the app can find, without opening a window: the quickest
