@@ -2,6 +2,13 @@
 
 Each version's notes become its release notes on GitHub.
 
+## 1.2.3
+
+- Linux AppImage: notebooks, the terminal, git and LaTeX use your system's libraries again, so
+  packages with compiled parts (matplotlib, Pillow, NumPy) import as they do in your own shell,
+  and Install LaTeX can download.
+- The welcome screen says "On this computer" instead of "On this Mac".
+
 ## 1.2.2
 
 - The compile shortcut works with the cursor in the editor again, instead of adding a blank line.
