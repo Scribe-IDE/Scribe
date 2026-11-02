@@ -412,7 +412,7 @@ struct CompileResult {
 }
 
 fn has(bin: &str) -> bool {
-    Command::new(bin).arg("--version").output().map(|o| o.status.success()).unwrap_or(false)
+    tool_command(bin).arg("--version").output().map(|o| o.status.success()).unwrap_or(false)
 }
 
 /// Compile with Tectonic if installed (self-contained, fetches packages on
@@ -431,14 +431,14 @@ fn run_tex(root_dir: &Path, input: &str, outdir: &str, synctex: bool) -> Result<
     std::fs::create_dir_all(root_dir.join(outdir)).map_err(|e| e.to_string())?;
 
     let (engine, mut cmd) = if has("tectonic") {
-        let mut c = Command::new("tectonic");
+        let mut c = tool_command("tectonic");
         c.args(["-X", "compile", input, "--outdir", outdir, "--keep-logs"]);
         if synctex {
             c.arg("--synctex");
         }
         ("tectonic", c)
     } else if has("latexmk") {
-        let mut c = Command::new("latexmk");
+        let mut c = tool_command("latexmk");
         c.args(["-pdf", "-interaction=nonstopmode", "-halt-on-error", "-file-line-error", &format!("-outdir={outdir}")]);
         if synctex {
             c.arg("-synctex=1");
@@ -509,7 +509,7 @@ async fn pdf_to_svg(root: String, from: String, to: String) -> Result<(), String
         ];
         let mut errors = Vec::new();
         for (tool, args) in tries {
-            match Command::new(tool).args(&args).output() {
+            match tool_command(tool).args(&args).output() {
                 Ok(out) if out.status.success() && dest.is_file() => return Ok(()),
                 Ok(out) => errors.push(format!("{tool}: {}", String::from_utf8_lossy(&out.stderr).trim())),
                 Err(_) => errors.push(format!("{tool} isn't installed")),
@@ -552,7 +552,7 @@ struct PdfSpot {
 fn run_synctex(root_dir: &Path, args: &[&str]) -> Result<String, String> {
     // Apps launched from Finder don't inherit the shell PATH, so also try MacTeX's fixed location.
     for bin in ["synctex", "/Library/TeX/texbin/synctex"] {
-        if let Ok(out) = Command::new(bin).args(args).current_dir(root_dir).output() {
+        if let Ok(out) = tool_command(bin).args(args).current_dir(root_dir).output() {
             return Ok(String::from_utf8_lossy(&out.stdout).into_owned());
         }
     }
@@ -1067,7 +1067,7 @@ fn run_notebook_blocking(root: &str, rel: &str) -> Result<RunResult, String> {
     std::fs::write(&runner_path, &script).map_err(|e| e.to_string())?;
 
     let python = find_python()?;
-    let out = Command::new(&python)
+    let out = tool_command(&python)
         .arg(".scribe-runner.py")
         .current_dir(&root_dir)
         .output()
@@ -1145,7 +1145,7 @@ struct GitFileStatus {
 /// The checked-out branch, or None outside a git repository.
 #[tauri::command]
 fn git_branch(root: String) -> Option<String> {
-    let out = Command::new("git").args(["rev-parse", "--abbrev-ref", "HEAD"]).current_dir(&root).output().ok()?;
+    let out = tool_command("git").args(["rev-parse", "--abbrev-ref", "HEAD"]).current_dir(&root).output().ok()?;
     let branch = String::from_utf8_lossy(&out.stdout).trim().to_string();
     (out.status.success() && !branch.is_empty()).then_some(branch)
 }
@@ -1153,7 +1153,7 @@ fn git_branch(root: String) -> Option<String> {
 /// Runs git in the project folder. Never waits on a terminal prompt: a push that needs
 /// credentials fails with git's message instead of hanging the app.
 fn git(root_dir: &Path, args: &[&str]) -> Result<std::process::Output, String> {
-    Command::new("git")
+    tool_command("git")
         .args(args)
         .current_dir(root_dir)
         .env("GIT_TERMINAL_PROMPT", "0")
@@ -1258,7 +1258,7 @@ const DIFF_DIR: &str = "build/diff";
 
 /// One of TeX Live's Perl tools, its output or a message that names what's missing.
 fn tex_tool(tool: &str, args: &[&str], dir: &Path) -> Result<String, String> {
-    let out = Command::new(tool).args(args).current_dir(dir).output().map_err(|_| {
+    let out = tool_command(tool).args(args).current_dir(dir).output().map_err(|_| {
         format!("{tool} isn't installed. It comes with TeX Live; with Tectonic alone, install it with your TeX distribution or `tlmgr install {tool}`.")
     })?;
     if !out.status.success() {
@@ -1363,7 +1363,7 @@ struct GitIdentity {
 #[tauri::command]
 fn git_identity() -> GitIdentity {
     let read = |key: &str| {
-        Command::new("git")
+        tool_command("git")
             .args(["config", "--global", key])
             .output()
             .ok()
@@ -1564,7 +1564,7 @@ fn kernel_start(root: String) -> Result<(), String> {
     std::fs::write(&script_path, KERNEL_SCRIPT).map_err(|e| e.to_string())?;
 
     let python = find_python()?;
-    let mut child = Command::new(&python)
+    let mut child = tool_command(&python)
         .args(["-u", ".scribe-kernel.py"])
         .current_dir(&root_dir)
         .stdin(std::process::Stdio::piped())
@@ -1883,7 +1883,7 @@ struct Citation {
 }
 
 fn http_get(url: &str, accept: Option<&str>) -> Result<String, String> {
-    let mut cmd = Command::new("curl");
+    let mut cmd = tool_command("curl");
     cmd.args(["-sL", "--max-time", "20"]);
     if let Some(accept) = accept {
         cmd.args(["-H", &format!("Accept: {accept}")]);
@@ -2199,7 +2199,7 @@ async fn clone_project(url: String, parent: String) -> Result<String, String> {
         }
         let name = url.trim_end_matches('/').trim_end_matches(".git").rsplit(['/', ':']).next().unwrap_or("project").to_string();
         let dest = free_dir(Path::new(&parent), if name.is_empty() { "project" } else { &name });
-        let out = Command::new("git")
+        let out = tool_command("git")
             .args(["clone", "--", url])
             .arg(&dest)
             .env("GIT_TERMINAL_PROMPT", "0")
@@ -2247,7 +2247,7 @@ async fn zotero_get(path: String) -> Result<String, String> {
         if !path.starts_with("/api/") || path.contains("..") {
             return Err("not a Zotero API path".into());
         }
-        let out = Command::new("curl")
+        let out = tool_command("curl")
             .args(["-s", "--max-time", "15", "-H", "Zotero-API-Version: 3", "-w", "\n%{http_code}"])
             .arg(format!("http://127.0.0.1:23119{path}"))
             .output()
@@ -2324,7 +2324,7 @@ fn install_tectonic_into(dir: &Path) -> Result<String, String> {
     let (name, url) = tectonic_asset(&releases, target).ok_or("Couldn't find a Tectonic download for this computer.")?;
     std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     let archive = dir.join(&name);
-    let out = Command::new("curl")
+    let out = tool_command("curl")
         .args(["-sfL", "--max-time", "300", "-o"])
         .arg(&archive)
         .arg(&url)
@@ -2335,13 +2335,13 @@ fn install_tectonic_into(dir: &Path) -> Result<String, String> {
         return Err("The download failed. Check the internet connection and try again.".into());
     }
     // tar unpacks .tar.gz everywhere, and .zip too on Windows 10 and later
-    let out = Command::new("tar").arg("-xf").arg(&archive).arg("-C").arg(dir).output().map_err(|e| e.to_string())?;
+    let out = tool_command("tar").arg("-xf").arg(&archive).arg("-C").arg(dir).output().map_err(|e| e.to_string())?;
     let _ = std::fs::remove_file(&archive);
     if !out.status.success() {
         return Err(format!("Couldn't unpack Tectonic: {}", String::from_utf8_lossy(&out.stderr).trim()));
     }
     let bin = dir.join(if cfg!(windows) { "tectonic.exe" } else { "tectonic" });
-    let version = Command::new(&bin).arg("--version").output().map_err(|e| format!("Tectonic was downloaded but won't start: {e}"))?;
+    let version = tool_command(&bin).arg("--version").output().map_err(|e| format!("Tectonic was downloaded but won't start: {e}"))?;
     if !version.status.success() {
         return Err("Tectonic was downloaded but won't start.".into());
     }
@@ -2377,7 +2377,7 @@ fn login_shell_path() -> Option<String> {
     } else {
         "printf '__SCRIBE__%s__SCRIBE__' \"$PATH\""
     };
-    let mut child = Command::new(&shell)
+    let mut child = tool_command(&shell)
         .args(["-ilc", print])
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
@@ -2433,7 +2433,6 @@ fn adopt_shell_path() {}
 /// The AppImage launcher points Python and Perl at the (empty) copies inside the image, so the
 /// user's own Python dies with "No module named 'encodings'" and latexmk can pick up the wrong
 /// modules. Drop the entries under the mount before any tool is started; the user's own stay.
-/// LD_LIBRARY_PATH is left alone: the bundled WebKit's helper processes need it.
 fn leave_appimage_env() {
     let Ok(appdir) = std::env::var("APPDIR") else { return };
     if appdir.is_empty() || std::env::var_os("APPIMAGE").is_none() {
@@ -2441,13 +2440,45 @@ fn leave_appimage_env() {
     }
     for var in ["PYTHONHOME", "PYTHONPATH", "PERLLIB", "PERL5LIB"] {
         let Ok(value) = std::env::var(var) else { continue };
-        let kept: Vec<&str> = value.split(':').filter(|p| !p.is_empty() && !p.starts_with(&appdir)).collect();
-        if kept.is_empty() {
-            std::env::remove_var(var);
-        } else {
-            std::env::set_var(var, kept.join(":"));
+        match strip_appdir(&value, &appdir) {
+            Some(kept) => std::env::set_var(var, kept),
+            None => std::env::remove_var(var),
         }
     }
+    let _ = APPIMAGE_DIR.set(appdir);
+}
+
+/// Where the AppImage is mounted, when Scribe runs from one.
+static APPIMAGE_DIR: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// A colon-separated list without the entries inside the AppImage; None when nothing is left.
+fn strip_appdir(value: &str, appdir: &str) -> Option<String> {
+    let kept: Vec<&str> = value.split(':').filter(|p| !p.is_empty() && !p.starts_with(appdir)).collect();
+    (!kept.is_empty()).then(|| kept.join(":"))
+}
+
+/// The variables a tool started by Scribe gets instead of ours. The AppImage launcher puts its
+/// own libraries first in LD_LIBRARY_PATH, which Scribe's bundled WebKit needs but which breaks
+/// the user's programs (the system libtiff loading the image's older libjpeg, say). So they are
+/// taken out for each tool, not for Scribe itself. Empty outside an AppImage.
+fn tool_env() -> Vec<(&'static str, Option<String>)> {
+    let Some(appdir) = APPIMAGE_DIR.get() else { return Vec::new() };
+    ["LD_LIBRARY_PATH", "PATH"]
+        .into_iter()
+        .filter_map(|var| std::env::var(var).ok().map(|value| (var, strip_appdir(&value, appdir))))
+        .collect()
+}
+
+/// Start a program the way the user's own terminal would: every tool Scribe runs goes through here.
+fn tool_command(program: impl AsRef<std::ffi::OsStr>) -> Command {
+    let mut command = Command::new(program);
+    for (var, value) in tool_env() {
+        match value {
+            Some(value) => command.env(var, value),
+            None => command.env_remove(var),
+        };
+    }
+    command
 }
 
 #[derive(Serialize)]
@@ -2511,6 +2542,12 @@ fn spawn_pty(
         c
     };
     cmd.cwd(root_dir);
+    for (var, value) in tool_env() {
+        match value {
+            Some(value) => cmd.env(var, value),
+            None => cmd.env_remove(var),
+        }
+    }
     cmd.env("TERM", "xterm-256color");
     cmd.env("COLORTERM", "truecolor");
 
@@ -2673,6 +2710,16 @@ mod tests {
 
     fn example() -> String {
         concat!(env!("CARGO_MANIFEST_DIR"), "/../example").to_string()
+    }
+
+    #[test]
+    fn tools_lose_the_appimage_paths() {
+        let appdir = "/tmp/.mount_ScribeX";
+        assert_eq!(strip_appdir("/tmp/.mount_ScribeX/usr/lib:/opt/lib", appdir).as_deref(), Some("/opt/lib"));
+        assert_eq!(strip_appdir("/tmp/.mount_ScribeX/usr/lib/:/tmp/.mount_ScribeX/usr/lib64:", appdir), None);
+        assert_eq!(strip_appdir("/usr/local/bin:/usr/bin", appdir).as_deref(), Some("/usr/local/bin:/usr/bin"));
+        // outside an AppImage nothing is recorded, so tools get the environment untouched
+        assert!(APPIMAGE_DIR.get().is_some() || tool_env().is_empty());
     }
 
     #[test]
